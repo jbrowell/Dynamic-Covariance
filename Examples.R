@@ -10,6 +10,8 @@ source("CovFunctions.R")
 
 ## Notes for the future ####
 
+# Try nls()... e.g. formulat= cov ~ cov_function(...)
+
 # End goal: estimate and sample mvn. This script focuses on estiamting
 # parametric covaraince functions.
 
@@ -196,7 +198,7 @@ Cov_e <- cov(qnorm(as.matrix(UDATA[,-1])),use = "pairwise.complete.obs")
 image(t(Cov_e))
 
 # Singel GSPG/Temporal
-G=13
+G=10
 surf3D(matrix(R2[1,],nrow(R2),nrow(R2)),
        matrix(R2[1,],nrow(R2),nrow(R2),byrow = T),
        Cov_e[1:nrow(R2)+nrow(R2)*(G-1),1:nrow(R2)+nrow(R2)*(G-1)],
