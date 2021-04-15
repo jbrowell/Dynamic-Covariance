@@ -42,7 +42,7 @@ surf3D(matrix(r,length(r),length(r),byrow = F),
 
 ## Sample
 
-data_sim <- mvnfast::rmvn(n = 2^10,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
+data_sim <- mvnfast::rmvn(n = 2^11,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
 Cov_R_sim <- cov(data_sim)
 image(t(Cov_R_sim))
 image(t(Cov_R_sim-Cov_R))
@@ -82,11 +82,14 @@ points(c(R),c(Cov_R),pch=16)
 points(c(R),c(Cov_R_fit),pch=16,col=2)
 
 
+# Remove everything apart from functions
+rm(list = setdiff(ls(), lsf.str()))
 
 
 
 
 ## Form two-variable symetric matrics, sample and fit ####
+
 r1 <- seq(0,3,length.out = 5)
 r2 <- seq(0,3,length.out = 12)
 
@@ -149,18 +152,68 @@ Cov2_R_fit <- Cov_Func2(params =  Fit2$par,R1,R2)
 image(t(Cov2_R_fit))
 
 scatter3D(R1 %x% matrix(1,nrow(R2),nrow(R2)),
-       matrix(1,nrow(R1),nrow(R1)) %x% R2,
-       Cov2_R_sim,
-       col = rgb(0,1,0,alpha = 0.2),cex=0.5,
-       xlab="Spatial Separation",ylab="Temporal Separation",zlab="Covariance",
-       zlim=c(0,1),theta = -10,phi = 10)
+          matrix(1,nrow(R1),nrow(R1)) %x% R2,
+          Cov2_R_sim,
+          col = rgb(0,1,0,alpha = 0.2),cex=0.5,
+          xlab="Spatial Separation",ylab="Temporal Separation",zlab="Covariance",
+          zlim=c(0,1),theta = -10,phi = 10)
 
 scatter3D(R1 %x% matrix(1,nrow(R2),nrow(R2)),
           matrix(1,nrow(R1),nrow(R1)) %x% R2,
           Cov2_R,
           col = 2,add = T)
+
 plotrgl()
 
+
+
+# Remove everything apart from functions
+rm(list = setdiff(ls(), lsf.str()))
+
+
+
+
+## Fit to GSP Group Data ####
+load("data/GSPG_9_2_GAM-Grid_cGPD.rda")
+load("data/GSPG_Centroids.rda")
+
+## Get Time-difference matrix
+tt <- unique(as.numeric(gsub(pattern = "[A-P]",replacement = "",names(UDATA)[-1])))
+R2 <- abs(matrix(tt,length(tt),length(tt),byrow = T) - matrix(tt,length(tt),length(tt),byrow = F))
+rm(tt)
+
+## Get spatial separation matrix
+# h <- data.table(GSPG=gsub(pattern = "[0-9\\.]",replacement = "",names(UDATA)[-1]))
+setkey(Centro,"GSPG")
+# h <- merge(h,Centro,by="GSPG",all.x=T)
+R1 <- as.matrix(dist(Centro[,.(lon,lat)],diag=T))
+R1 <- R1/median(R1)
+
+
+## Empirical Cov
+Cov_e <- cov(qnorm(as.matrix(UDATA[,-1])),use = "pairwise.complete.obs")
+
+image(t(Cov_e))
+
+# Singel GSPG/Temporal
+G=13
+surf3D(matrix(R2[1,],nrow(R2),nrow(R2)),
+       matrix(R2[1,],nrow(R2),nrow(R2),byrow = T),
+       Cov_e[1:nrow(R2)+nrow(R2)*(G-1),1:nrow(R2)+nrow(R2)*(G-1)],
+       colvar = Cov_e[1:nrow(R2)+nrow(R2)*(G-1),1:nrow(R2)+nrow(R2)*(G-1)],
+       colkey = F, facets = F,bty="f",
+       xlab="Temporal Separation",ylab="Temporal Separation",zlab="Covariance",
+       theta = -10,phi = 10)
+plotrgl()
+
+
+## Spatio-temporal cov function - what a mess!
+scatter3D(R1 %x% matrix(1,nrow(R2),nrow(R2)),
+          matrix(1,nrow(R1),nrow(R1)) %x% R2,
+          Cov_e,
+          col = rgb(0,1,0,alpha = 0.2),cex=0.5,
+          xlab="Spatial Separation",ylab="Temporal Separation",zlab="Covariance",
+          zlim=c(0,1),theta = -10,phi = 10)
 
 
 
