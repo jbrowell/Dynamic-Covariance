@@ -14,16 +14,17 @@
 # - Allow parameters to vary with covariate...
 ## !!! Put data into long form with cols for "separation" and any covariates.
 ## Define functional form and estimate with lm/nlm/mgcv...
-
+## Move objective functions to this script
+## Write new function to convert mgcv forumulas into new parameters for obj and pass to optimiser
 
 
 
 ## Powered Exponential
 PowExp <- function(r,params=list(sigma=1,theta=1,gamma=1)){
   
-  if(params[[1]] < 0){stop("sigma<0")}
-  if(params[[2]] <=0){stop("theta<=0")}
-  if(params[[3]] <= 0 | params[[3]] > 2){stop("gamma <= 0 | gamma > 2")}
+  if(any(params[[1]] < 0)){stop("sigma<0")}
+  if(any(params[[2]] <=0)){stop("theta<=0")}
+  if(any(params[[3]] <= 0 | params[[3]] > 2)){stop("gamma <= 0 | gamma > 2")}
   
   return((params[[1]]^2)*exp(-(params[[2]]*r)^params[[3]]))
 }

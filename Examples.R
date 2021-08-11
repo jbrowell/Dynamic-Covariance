@@ -85,9 +85,66 @@ points(c(R),c(Cov_R),pch=16)
 points(c(R),c(Cov_R_fit),pch=16,col=2)
 
 
+
 # Remove everything apart from functions
 rm(list = setdiff(ls(), lsf.str()))
 
+
+
+## Example with changing parameter ####
+require(mgcv)
+require(Matrix)
+
+r <- seq(0,1,length.out=100)
+R <- as.matrix(dist(r))
+Z <- r %*% t(r) # NB: Cov is no longer a function of separation only... 
+
+image(t(Z))
+
+# True Covariance
+Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=sqrt(2),theta=2+1/(0.2+Z),gamm=1)))$mat)
+image(t(Cov_R))
+
+# Empirical from simulation
+data_sim <- mvnfast::rmvn(n = 2^11,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
+Cov_R_sim <- cov(data_sim)
+image(t(Cov_R_sim))
+
+
+
+modelling_table <- data.frame(y=c(Cov_R_sim),
+                              r=c(R),
+                              x1=c(Z))
+
+plot(x=modelling_table$r,
+     y=modelling_table$y,
+     col=rgb(1-modelling_table$x1,0,modelling_table$x1))
+
+
+## Function to fit model with gam-like expressions for cov function parameters
+# Generalised Additive Covariance
+gac <- function(R, # Separation matrix
+                X, # Some container of covariates... TBC
+                Emp_Cov, # Empirical covaraiance to fit model to alt: = cov(data)
+                cov_func, # parametric covarianve function
+                param_eqns # list of gam expressions for parameters
+){
+  
+  ## Create modeling table of expanded basis from param_equations
+  
+  ## Create objective function for model parameters ~ need some penalty on smoothness?
+  
+  ## Estimate parameters
+  
+  ## Return
+  # list:
+  #  functional form of parameters of covariance function?
+  #  covariance function parameter estimates
+  #  covariance estimates from model
+  
+  
+  
+}
 
 
 
