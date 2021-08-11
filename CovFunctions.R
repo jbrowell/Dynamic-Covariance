@@ -9,7 +9,11 @@
 # - Add facility for nugget effect
 # - Add non-seperable functions. See Gneiting2007a for generic form
 # - Add generic periodic fucntions for selection of kernels
-# - Add facility for Lagrangian covariance functions 
+# - Add facility for Lagrangian covariance functions
+#
+# - Allow parameters to vary with covariate...
+## !!! Put data into long form with cols for "separation" and any covariates.
+## Define functional form and estimate with lm/nlm/mgcv...
 
 
 

@@ -10,23 +10,23 @@ source("CovFunctions.R")
 
 ## Notes for the future ####
 
-# Try nls()... e.g. formulat= cov ~ cov_function(...)
+# Try nls()... e.g. formula = cov ~ cov_function(...)
 
-# End goal: estimate and sample mvn. This script focuses on estiamting
-# parametric covaraince functions.
+# End goal: estimate and sample mvn. This script focuses on estimating
+# parametric contrivance functions.
 
-# Alternative, estiamte (sparse) precision matrix e.g. "glasso" then
+# Alternative, estimate (sparse) precision matrix e.g. "glasso" then
 # sample using "sparseMVN::rmvn.sparse()"...
 
 
-## Form single-variate symetric matrix, sample and fit  ####
+## Form single-variate symmetric matrix, sample and fit  ####
 
 r <- seq(0,3,by=0.1)
 R <- as.matrix(dist(r))
 # Cov_R <- PowExp(R,params = c(sqrt(2),1.5,0.8))
 Cov_R <- Spherical(R)
 
-image(t(R))
+image(t(Cov_R))
 surf3D(matrix(r,length(r),length(r),byrow = F),
        matrix(r,length(r),length(r),byrow = T),
        Cov_R,
@@ -51,6 +51,7 @@ image(t(Cov_R_sim-Cov_R))
 
 obj <- function(params,R,Emp_Cov,cov_func,loss="WLS"){
   
+  # Calculate parametric covairance matrix from supplied parameters
   Par_cov <- cov_func(r = R,params)
   
   if(loss=="WLS"){
@@ -90,7 +91,7 @@ rm(list = setdiff(ls(), lsf.str()))
 
 
 
-## Form two-variable symetric matrics, sample and fit ####
+## Form two-variable symmetric matrices, sample and fit ####
 
 r1 <- seq(0,3,length.out = 5)
 r2 <- seq(0,3,length.out = 12)
@@ -167,7 +168,8 @@ scatter3D(R1 %x% matrix(1,nrow(R2),nrow(R2)),
 
 plotrgl()
 
-
+# Save as html!!! :)
+# saveWidget(widget = rglwidget(x = scene3d()),file="test.html")
 
 # Remove everything apart from functions
 rm(list = setdiff(ls(), lsf.str()))
@@ -197,8 +199,8 @@ Cov_e <- cov(qnorm(as.matrix(UDATA[,-1])),use = "pairwise.complete.obs")
 
 image(t(Cov_e))
 
-# Singel GSPG/Temporal
-G=10
+### Single GSPG/Temporal ####
+G=6
 surf3D(matrix(R2[1,],nrow(R2),nrow(R2)),
        matrix(R2[1,],nrow(R2),nrow(R2),byrow = T),
        Cov_e[1:nrow(R2)+nrow(R2)*(G-1),1:nrow(R2)+nrow(R2)*(G-1)],
@@ -209,7 +211,12 @@ surf3D(matrix(R2[1,],nrow(R2),nrow(R2)),
 plotrgl()
 
 
-## Spatio-temporal cov function - what a mess!
+plot(c(R2),c(Cov_e[1:nrow(R2)+nrow(R2)*(G-1),1:nrow(R2)+nrow(R2)*(G-1)]))
+image(t(Cov_e[1:nrow(R2)+nrow(R2)*(G-1),1:nrow(R2)+nrow(R2)*(G-1)]))
+
+
+### Spatio-temporal cov function ####
+# what a mess!
 scatter3D(R1 %x% matrix(1,nrow(R2),nrow(R2)),
           matrix(1,nrow(R1),nrow(R1)) %x% R2,
           Cov_e,
@@ -217,5 +224,5 @@ scatter3D(R1 %x% matrix(1,nrow(R2),nrow(R2)),
           xlab="Spatial Separation",ylab="Temporal Separation",zlab="Covariance",
           zlim=c(0,1),theta = -10,phi = 10)
 
-
+plotrgl()
 
