@@ -15,18 +15,37 @@
 ## !!! Put data into long form with cols for "separation" and any covariates.
 ## Define functional form and estimate with lm/nlm/mgcv...
 ## Move objective functions to this script
-## Write new function to convert mgcv forumulas into new parameters for obj and pass to optimiser
-
+## Write new function to convert mgcv forumulas into new parameters for obj and pass to optimiser?
+## Add return_param_limits option
 
 
 ## Powered Exponential
-PowExp <- function(r,params=list(sigma=1,theta=1,gamma=1)){
+PowExp <- function(r=NULL,params=list(sigma=1,theta=1,gamma=1),return_param_limits=F,optim_bound=F){
   
-  if(any(params[[1]] < 0)){stop("sigma<0")}
-  if(any(params[[2]] <=0)){stop("theta<=0")}
-  if(any(params[[3]] <= 0 | params[[3]] > 2)){stop("gamma <= 0 | gamma > 2")}
-  
-  return((params[[1]]^2)*exp(-(params[[2]]*r)^params[[3]]))
+  if(return_param_limits){
+    return(list(lower=c(0,.Machine$double.eps,.Machine$double.eps),
+                upper=c(Inf,Inf,2)))
+  }else{
+    
+    if(is.null(r)){stop("r missing with no default.")}
+    
+    if(!optim_bound){
+      if(any(params[[1]] < 0)){stop("sigma<0")}
+      if(any(params[[2]] <=0)){stop("theta<=0")}
+      if(any(params[[3]] <= 0 | params[[3]] > 2)){stop("gamma <= 0 | gamma > 2")}
+    }
+    
+    output <- (params[[1]]^2)*exp(-(params[[2]]*r)^params[[3]])
+    
+    if(optim_bound){
+      output[params[[1]] < 0] <- Inf
+      output[params[[2]] <=0] <- Inf
+      output[params[[3]] <= 0 | params[[3]] > 2] <- Inf
+    }
+    
+    return(output)
+    
+  }
 }
 
 

@@ -4,6 +4,7 @@ require(data.table)
 require(plot3D)
 require(plot3Drgl)
 require(mvnfast)
+require(splines)
 setwd(dirname(getActiveDocumentContext()$path))
 
 source("CovFunctions.R")
@@ -23,8 +24,8 @@ source("CovFunctions.R")
 
 r <- seq(0,3,by=0.1)
 R <- as.matrix(dist(r))
-# Cov_R <- PowExp(R,params = c(sqrt(2),1.5,0.8))
-Cov_R <- Spherical(R)
+Cov_R <- PowExp(R,params = c(sqrt(2),1.5,0.8))
+# Cov_R <- Spherical(R)
 
 image(t(Cov_R))
 surf3D(matrix(r,length(r),length(r),byrow = F),
@@ -49,10 +50,10 @@ Cov_R_sim <- cov(data_sim)
 image(t(Cov_R_sim))
 image(t(Cov_R_sim-Cov_R))
 
-obj <- function(params,R,Emp_Cov,cov_func,loss="WLS"){
+obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",...){
   
   # Calculate parametric covairance matrix from supplied parameters
-  Par_cov <- cov_func(r = R,params)
+  Par_cov <- cov_func(r = R,params,...)
   
   if(loss=="WLS"){
     # Weighted least squares of covariance only (VARIANCE excluded!)
@@ -68,9 +69,9 @@ obj <- function(params,R,Emp_Cov,cov_func,loss="WLS"){
   
 }
 
-obj(c(1,1),R,Cov_R_sim,cov_func=Spherical)
+obj(c(1,1,1),R,Cov_R_sim,cov_func=PowExp)
 
-Fit1 <- optim(par=c(1,1),
+Fit1 <- optim(par=c(1,1,1),
               obj,
               method = "L-BFGS-B",
               lower=c(0,0,0),
@@ -78,7 +79,7 @@ Fit1 <- optim(par=c(1,1),
               R=R,Emp_Cov = Cov_R_sim,
               cov_func=Spherical)
 
-Cov_R_fit <- Spherical(R,params =  Fit1$par)
+Cov_R_fit <- PowExp(R,params =  Fit1$par)
 
 plot(c(R),c(Cov_R_sim),pch=16,col=rgb(0,1,0,alpha = .1))
 points(c(R),c(Cov_R),pch=16)
@@ -123,20 +124,89 @@ plot(x=modelling_table$r,
 
 ## Function to fit model with gam-like expressions for cov function parameters
 # Generalised Additive Covariance
+#
+# Smoothness parameter - ridge penalty
+#
 gac <- function(R, # Separation matrix
                 X, # Some container of covariates... TBC
                 Emp_Cov, # Empirical covaraiance to fit model to alt: = cov(data)
                 cov_func, # parametric covarianve function
-                param_eqns # list of gam expressions for parameters
+                param_eqns, # list of gam expressions for parameters
+                param_init=NULL, # parameter values to initialise optimisaiont
+                loss="WLS" # Loss function for optimisation
 ){
   
+  ## For dev:
+  R <- R
+  X <- list(x1=Z)
+  Emp_Cov <- Cov_R_sim
+  cov_func <- PowExp
+  param_eqns <- list(~1,
+                     ~bs(x1,df=5,intercept = F),
+                     ~1)
+  
+  
   ## Create modeling table of expanded basis from param_equations
+  modelling_table <- data.frame(y=c(Cov_R_sim),
+                                r=c(R))
+  design_mat <- list()
+  for(i in names(X)){
+    modelling_table[[i]] <- c(X[[i]])
+  }
+  
+  for(i in 1:length(param_eqns)){
+    
+    design_mat[[i]] <- model.matrix(param_eqns[[i]],data = modelling_table)
+    
+  }
   
   ## Create objective function for model parameters ~ need some penalty on smoothness?
+  obj_gac <- function(gac_params,design_mat,R,Emp_Cov,cov_func,loss){
+    
+    # Calculate parametric covairance matrix from supplied parameters
+    n_gac_params <- unlist(lapply(design_mat,ncol))
+    params <- list()
+    for(i in 1:length(design_mat)){
+      params[[i]] <-  matrix(design_mat[[i]] %*% gac_params[
+        sum(n_gac_params[0:(i-1)])+1:n_gac_params[i]],
+        ncol = ncol(R))
+    }
+    obj(params = params,R = R,Emp_Cov = Emp_Cov,cov_func = cov_func,loss=loss,optim_bound=T)
+    
+  }
+  
   
   ## Estimate parameters
+  if(is.null(param_init)){
+    param_init <- rep(1,length(param_eqns))
+  }
+  gac_params_init <- c()
+  for(i in 1:length(design_mat)){
+    gac_params_init <- c(gac_params_init,param_init[i],rep(0,ncol(design_mat[[i]])-1))
+  }
   
-  ## Return
+  # Check first evaluation...
+  temp_test <- try(obj_gac(gac_params = gac_params_init,design_mat = design_mat,
+                       R = R,Emp_Cov = Emp_Cov,cov_func = cov_func))
+  if(class(temp_test)=="try.error"){stop("First evaluation of objective function (with param_init) failed.")}
+  rm(temp_test)
+  
+  
+  # Optimisation...
+  Fit1 <- optim(par=gac_params_init,
+                obj_gac,
+                ## Can impose box constraints, but not for anything but trivial models
+                # method = "L-BFGS-B",
+                # lower=cov_func(return_param_limits=T)$lower,
+                # upper = cov_func(return_param_limits=T)$upper,
+                method="BFGS",
+                design_mat = design_mat,
+                R=R,
+                loss=loss,
+                Emp_Cov = Emp_Cov,
+                cov_func=cov_func)
+  
+  ## Return - new class?
   # list:
   #  functional form of parameters of covariance function?
   #  covariance function parameter estimates
