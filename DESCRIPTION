@@ -1,0 +1,10 @@
+Package: Dynamic-Covariance
+Title: Generalised Additive Covariance Models
+Version: 0.1
+Authors@R: person("Jethro", "Browell", email = "jethro.browell@glasgow.ac.uk",
+                  role = c("aut", "cre"))
+Description: Functions for estimating covariance functions and matricies where the parameters of covariance functions may take the form of a generalised additive model.
+Depends: R (>= 3.1.0)
+License: GNU
+LazyData: true
+RoxygenNote: 7.1.1
