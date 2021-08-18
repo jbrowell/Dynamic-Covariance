@@ -1,5 +1,3 @@
-
-
 #' Objective functions for covariance functions
 #'
 #' Function to evaluate a selected objective function for a given covariance
@@ -7,14 +5,15 @@
 #' 
 #' @author Jethro Browell, \email{jethro.browell@@glasgow.ac.uk}
 #' @param params A list of parameters to be passed to specified covairance function \code{cov_func}
-#' @param R Separation matrix (or vector)
+#' @param R Separation matrix or vector
 #' @param Emp_Cov Empirical covariance matrix against which covariance function is evaluated
 #' @param cov_func A covariance function
 #' @param loss Chosen loss function. Options are:
 #' \itemize{
-#'  \item{"WLS"}{Weighted Leased Squares - weigthing by correlation.}
-#'  \item{"LS"}{Least Squares}
+#'  \item{WLS}{Weighted Leased Squares - weigthing by correlation.}
+#'  \item{LS}{Least Squares}
 #' }
+#' @param ... Additional arguments passed to \code{cov_func}
 #' @details Function that returns the value of the chosen loss function for given
 #' empirical covariance matrix and covairance function for use in numerical methods.
 #' @keywords Covariance Function
@@ -57,8 +56,8 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",...){
 #' @param param_init Parameter values to initialise optimisaion
 #' @param loss Chosen loss function. Options are:
 #' \itemize{
-#'  \item{"WLS"}{Weighted Leased Squares - weigthing by correlation.}
-#'  \item{"LS"}{Least Squares}
+#'  \item{WLS}{Weighted Leased Squares - weigthing by correlation.}
+#'  \item{LS}{Least Squares}
 #' }
 #' @details Fits models for generalised additive covariance functions. Work in progress!
 #' @return Returns an object of class \code{gac} for which methods will be writtern...
@@ -70,8 +69,7 @@ gac <- function(R,
                 cov_func,
                 param_eqns,
                 param_init=NULL,
-                loss="WLS"
-){
+                loss="WLS"){
   
   ## Create modeling table of expanded basis from param_equations
   modelling_table <- data.frame(y=c(Emp_Cov),
@@ -87,7 +85,7 @@ gac <- function(R,
   }
   
   ## Create objective function for model parameters ~ need some penalty on smoothness?
-  obj_gac <- function(gac_coef,design_mat,R,Emp_Cov,cov_func,loss){
+  internal_gac_obj <- function(gac_coef,design_mat,R,Emp_Cov,cov_func,loss){
     
     # Calculate parametric covairance matrix from supplied parameters and equations/design matrix
     n_gac_coef <- unlist(lapply(design_mat,ncol))
@@ -97,7 +95,8 @@ gac <- function(R,
         sum(n_gac_coef[0:(i-1)])+1:n_gac_coef[i]],
         ncol = ncol(R))
     }
-    gac_obj(params = params,R = R,Emp_Cov = Emp_Cov,cov_func = cov_func,loss=loss,optim_bound=T)
+    
+    gac_obj(params = params,R = R,Emp_Cov = Emp_Cov,cov_func = cov_func,loss = loss, optim_bound=T)
     
   }
   
@@ -114,25 +113,21 @@ gac <- function(R,
   }
   
   # Check first evaluation...
-  temp_test <- try(obj_gac(gac_coef = gac_coef_init,design_mat = design_mat,
-                           R = R,Emp_Cov = Emp_Cov,cov_func = cov_func))
+  temp_test <- try(internal_gac_obj(gac_coef = gac_coef_init,design_mat = design_mat,
+                                    R = R,Emp_Cov = Emp_Cov,cov_func = cov_func))
   if(class(temp_test)=="try.error"){stop("First evaluation of objective function (with param_init) failed.")}
   rm(temp_test)
   
   
   # Perform optimisation...
-  Fit1 <- optim(par=gac_coef_init,
-                obj_gac,
-                ## Can impose box constraints, but not for anything but trivial models
-                # method = "L-BFGS-B",
-                # lower=cov_func(return_param_limits=T)$lower,
-                # upper = cov_func(return_param_limits=T)$upper,
-                method="BFGS",
+  Fit1 <- optim(par = gac_coef_init,
+                fn = internal_gac_obj,
                 design_mat = design_mat,
-                R=R,
-                loss=loss,
+                R = R,
                 Emp_Cov = Emp_Cov,
-                cov_func=cov_func)
+                cov_func = cov_func,
+                loss = loss,
+                method = "BFGS")
   
   
   

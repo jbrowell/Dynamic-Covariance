@@ -1,4 +1,4 @@
-Package: Dynamic-Covariance
+Package: gac
 Title: Generalised Additive Covariance Models
 Version: 0.1
 Authors@R: person("Jethro", "Browell", email = "jethro.browell@glasgow.ac.uk",

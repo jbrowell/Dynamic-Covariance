@@ -5,10 +5,20 @@ require(plot3D)
 require(plot3Drgl)
 require(mvnfast)
 require(splines)
+
 require(roxygen2)
+require(devtools)
+
 setwd(dirname(getActiveDocumentContext()$path))
 
-source("CovFunctions.R")
+
+# Update package documentation
+document(pkg = ".")
+# Install from local repository
+install(".")
+# Load Package
+require(gac)
+
 
 ## Notes for the future ####
 
@@ -52,7 +62,7 @@ image(t(Cov_R_sim))
 image(t(Cov_R_sim-Cov_R))
 
 
-gac_obj(c(1,1,1),R,Cov_R_sim,cov_func=PowExp)
+gac_obj(c(1,1,1),R,Cov_R_sim,cov_func=PowExp,loss="WLS")
 
 Fit1 <- optim(par=c(1,1,1),
               gac_obj,
@@ -76,7 +86,6 @@ rm(list = setdiff(ls(), lsf.str()))
 
 
 ## Example with changing parameter ####
-require(mgcv)
 require(Matrix)
 
 r <- seq(0,1,length.out=100)
@@ -113,7 +122,8 @@ test_fit <- gac(R = R,
                 cov_func = PowExp,
                 param_eqns = list(~1,
                                   ~bs(x1,df=5,intercept = F),
-                                  ~1))
+                                  ~1),
+                loss="WLS")
 
 
 
