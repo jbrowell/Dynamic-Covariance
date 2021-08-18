@@ -12,12 +12,8 @@
 # - Add facility for Lagrangian covariance functions
 #
 # - Allow parameters to vary with covariate...
-## !!! Put data into long form with cols for "separation" and any covariates.
-## Define functional form and estimate with lm/nlm/mgcv...
-## Move objective functions to this script
-## Write new function to convert mgcv forumulas into new parameters for obj and pass to optimiser?
-## Add return_param_limits option
-
+## Add return_param_limits option? (Not used in optim in the end...)
+## Return Inf for bad params for use in numeric optimisation 
 
 ## Powered Exponential
 PowExp <- function(r=NULL,params=list(sigma=1,theta=1,gamma=1),return_param_limits=F,optim_bound=F){
