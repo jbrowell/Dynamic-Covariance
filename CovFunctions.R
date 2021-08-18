@@ -9,19 +9,39 @@
 # - Add facility for nugget effect
 # - Add non-seperable functions. See Gneiting2007a for generic form
 # - Add generic periodic fucntions for selection of kernels
-# - Add facility for Lagrangian covariance functions 
-
-
-
+# - Add facility for Lagrangian covariance functions
+#
+# - Allow parameters to vary with covariate...
+## Add return_param_limits option? (Not used in optim in the end...)
+## Return Inf for bad params for use in numeric optimisation 
 
 ## Powered Exponential
-PowExp <- function(r,params=list(sigma=1,theta=1,gamma=1)){
+PowExp <- function(r=NULL,params=list(sigma=1,theta=1,gamma=1),return_param_limits=F,optim_bound=F){
   
-  if(params[[1]] < 0){stop("sigma<0")}
-  if(params[[2]] <=0){stop("theta<=0")}
-  if(params[[3]] <= 0 | params[[3]] > 2){stop("gamma <= 0 | gamma > 2")}
-  
-  return((params[[1]]^2)*exp(-(params[[2]]*r)^params[[3]]))
+  if(return_param_limits){
+    return(list(lower=c(0,.Machine$double.eps,.Machine$double.eps),
+                upper=c(Inf,Inf,2)))
+  }else{
+    
+    if(is.null(r)){stop("r missing with no default.")}
+    
+    if(!optim_bound){
+      if(any(params[[1]] < 0)){stop("sigma<0")}
+      if(any(params[[2]] <=0)){stop("theta<=0")}
+      if(any(params[[3]] <= 0 | params[[3]] > 2)){stop("gamma <= 0 | gamma > 2")}
+    }
+    
+    output <- (params[[1]]^2)*exp(-(params[[2]]*r)^params[[3]])
+    
+    if(optim_bound){
+      output[params[[1]] < 0] <- Inf
+      output[params[[2]] <=0] <- Inf
+      output[params[[3]] <= 0 | params[[3]] > 2] <- Inf
+    }
+    
+    return(output)
+    
+  }
 }
 
 
