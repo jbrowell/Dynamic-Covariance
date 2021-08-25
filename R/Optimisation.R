@@ -143,6 +143,7 @@ gac <- function(R,
   }
   
   output <- list(call=match.call(),
+                 R=R,X=X,
                  Cov_Est = cov_func(r=R,params = param_est),
                  param_est=param_est,
                  gac_coef=gac_coef)
