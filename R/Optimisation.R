@@ -30,7 +30,7 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",...){
     
   }else if(loss=="WLSf"){
     # Weighted least squares of covariance only (VARIANCE excluded!)
-    mean(((Emp_Cov-Par_cov)*cov2cor(Par_cov))^2)
+    mean((cov2cor(Par_cov)*(Emp_Cov-Par_cov))^2)
     
   }else if(loss=="LS"){
     # Least squares (including variance)
