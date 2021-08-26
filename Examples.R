@@ -153,7 +153,7 @@ test_static_fit <- gac(R = R,
                        param_eqns = list(~1,
                                          ~1,
                                          ~1),
-                       loss="WLS")
+                       loss="WLSf")
 
 
 
@@ -164,7 +164,7 @@ test_fit <- gac(R = R,
                 param_eqns = list(~1,
                                   ~bs(x1,df=5,intercept = F),
                                   ~1),
-                loss="WLS")
+                loss="WLSf")
 
 
 
@@ -178,6 +178,10 @@ plot(x=modelling_table$r,
 
 
 
+
+
+image(Cov_R_sim-nearPD(Cov_R_sim)$mat)
+image(test_fit$Cov_Est-nearPD(test_fit$Cov_Est)$mat)
 
 ## Evaluate with log score, variogram score and energy score
 require(scoringRules)

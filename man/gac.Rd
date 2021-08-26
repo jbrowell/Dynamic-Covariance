@@ -17,7 +17,8 @@ gac(R, X, Emp_Cov, cov_func, param_eqns, param_init = NULL, loss = "WLS")
 
 \item{loss}{Chosen loss function. Options are:
 \itemize{
- \item{WLS}{Weighted Leased Squares - weigthing by correlation.}
+ \item{WLS}{Weighted Leased Squares - weigthing by correlation}
+ \item{WLSf}{Weighted Leased Squares - weigthing by all correlations}
  \item{LS}{Least Squares}
 }}
 

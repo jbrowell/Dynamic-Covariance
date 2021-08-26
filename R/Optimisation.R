@@ -10,7 +10,8 @@
 #' @param cov_func A covariance function
 #' @param loss Chosen loss function. Options are:
 #' \itemize{
-#'  \item{WLS}{Weighted Leased Squares - weigthing by correlation.}
+#'  \item{WLS}{Weighted Leased Squares - weigthing by cross-correlation}
+#'  \item{WLSf}{Weighted Leased Squares - weigthing by all correlations}
 #'  \item{LS}{Least Squares}
 #' }
 #' @param ... Additional arguments passed to \code{cov_func}
@@ -26,6 +27,10 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",...){
   if(loss=="WLS"){
     # Weighted least squares of covariance only (VARIANCE excluded!)
     mean(((Emp_Cov-Par_cov)/abs(1-cov2cor(Par_cov)))[R!=0]^2)
+    
+  }else if(loss=="WLSf"){
+    # Weighted least squares of covariance only (VARIANCE excluded!)
+    mean(((Emp_Cov-Par_cov)*cov2cor(Par_cov))^2)
     
   }else if(loss=="LS"){
     # Least squares (including variance)
@@ -56,7 +61,8 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",...){
 #' @param param_init Parameter values to initialise optimisaion
 #' @param loss Chosen loss function. Options are:
 #' \itemize{
-#'  \item{WLS}{Weighted Leased Squares - weigthing by correlation.}
+#'  \item{WLS}{Weighted Leased Squares - weigthing by correlation}
+#'  \item{WLSf}{Weighted Leased Squares - weigthing by all correlations}
 #'  \item{LS}{Least Squares}
 #' }
 #' @details Fits models for generalised additive covariance functions. Work in progress!
