@@ -124,7 +124,7 @@ Z <- r %*% t(r) # NB: Cov is no longer a function of separation only...
 
 image(t(Z))
 
-# True Covariance
+# True Covariance (consider some addition structure not captured by model --- introdcue some mis-sepecification?)
 Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=1,theta=2+1/(.1+sqrt(Z)),gamm=1)))$mat)
 image(t(Cov_R))
 
@@ -228,6 +228,27 @@ scores[,mean(ls),by="Name"]
 ## Notes on data from Ciaran:
 
 # Large RDAs of data, and RMD to load
+
+
+
+load("data/windsolar_fc.rda")
+
+zone_dat
+
+uobs <- dcast(zone_dat,
+              kfold+issueTime~id+lead_time,
+              value.var = c("u_val"),
+              drop = TRUE)
+setorder(uobs,issueTime)
+uobs[,1:10]
+
+WindSolar_Cov <- cor(uobs[,-c(1,2)],use = "pairwise.complete.obs")
+# image(WindSolar_Cov)
+
+col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
+lattice::levelplot(WindSolar_Cov,xlab="node id", ylab="node id",
+                   col.regions=col6(600), cuts=100, at=seq(-0.2,1,0.01),
+                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
 
 
 
