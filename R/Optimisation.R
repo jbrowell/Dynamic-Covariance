@@ -14,27 +14,28 @@
 #'  \item{WLSf}{Weighted Leased Squares - weigthing by all correlations}
 #'  \item{LS}{Least Squares}
 #' }
+#' @param pen Additional penalty (numeric), e.g. on smoothness, added to loss
 #' @param ... Additional arguments passed to \code{cov_func}
 #' @details Function that returns the value of the chosen loss function for given
 #' empirical covariance matrix and covairance function for use in numerical methods.
 #' @keywords Covariance Function
 #' @export
-gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",...){
+gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",pen=0,...){
   
   # Calculate parametric covairance matrix from supplied parameters
   Par_cov <- cov_func(r = R,params,...)
   
   if(loss=="WLS"){
     # Weighted least squares of covariance only (VARIANCE excluded!)
-    mean(((Emp_Cov-Par_cov)/abs(1-cov2cor(Par_cov)))[R!=0]^2)
+    mean(((Emp_Cov-Par_cov)/abs(1-cov2cor(Par_cov)))[R!=0]^2) + pen
     
   }else if(loss=="WLSf"){
     # Weighted least squares of covariance only (VARIANCE excluded!)
-    mean((cov2cor(Par_cov)*(Emp_Cov-Par_cov))^2)
+    mean((abs(cov2cor(Par_cov))*(Emp_Cov-Par_cov))^2) + pen
     
   }else if(loss=="LS"){
     # Least squares (including variance)
-    mean((Emp_Cov-Par_cov))^2
+    mean((Emp_Cov-Par_cov))^2 + pen
     
   }else{
     stop("Loss not recognised.")
@@ -65,8 +66,10 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",...){
 #'  \item{WLSf}{Weighted Leased Squares - weigthing by all correlations}
 #'  \item{LS}{Least Squares}
 #' }
+#' @param smoothness_param Parameter to control smoothness, is the weight that multiples
+#' squared second derivative of smooth splines.
 #' @details Fits models for generalised additive covariance functions. Work in progress!
-#' @return Returns an object of class \code{gac} for which methods will be writtern...
+#' @return Returns an object of class \code{gac} for which methods will be written...
 #' @keywords Covariance Function
 #' @export
 gac <- function(R,
@@ -75,34 +78,60 @@ gac <- function(R,
                 cov_func,
                 param_eqns,
                 param_init=NULL,
-                loss="WLS"){
+                loss="WLS",
+                smoothness_param=0){
   
   ## Create modeling table of expanded basis from param_equations
   modelling_table <- data.frame(y=c(Emp_Cov),
                                 r=c(R))
   design_mat <- list()
+  pen_mat <- list()
   for(i in names(X)){
     modelling_table[[i]] <- c(X[[i]])
   }
   for(i in 1:length(param_eqns)){
     
-    design_mat[[i]] <- model.matrix(param_eqns[[i]],data = modelling_table)
+    # design_mat[[i]] <- model.matrix(param_eqns[[i]],data = modelling_table)
+    
+    gam_prefit <- gam(update(param_eqns[[i]],"y~."),data = modelling_table,fit = F)
+    
+    design_mat[[i]] <- gam_prefit$X
+    
+    # Penalty matrix
+    pen_mat[[i]] <- gam_prefit$S
     
   }
   
+  
+  
   ## Create objective function for model parameters ~ need some penalty on smoothness?
-  internal_gac_obj <- function(gac_coef,design_mat,R,Emp_Cov,cov_func){
+  internal_gac_obj <- function(gac_coef){#,design_mat,R,Emp_Cov,cov_func){
     
     # Calculate parametric covairance matrix from supplied parameters and equations/design matrix
     n_gac_coef <- unlist(lapply(design_mat,ncol))
     params <- list()
+    penalty <- 0
     for(i in 1:length(design_mat)){
       params[[i]] <-  matrix(design_mat[[i]] %*% gac_coef[
         sum(n_gac_coef[0:(i-1)])+1:n_gac_coef[i]],
         ncol = ncol(R))
+      
+      ## Smoothness penalty?
+      if(length(pen_mat[[i]])==0){next}
+      
+      pen_dim <- cumsum(c(0,sapply(pen_mat[[i]],ncol)))
+      
+      temp_coef <- gac_coef[sum(n_gac_coef[0:(i-1)])+1:n_gac_coef[i]][colnames(design_mat[[i]])!="(Intercept)"]
+      for(j in 1:length(pen_mat[[i]])){
+        temp_coef2 <- temp_coef[1:ncol(pen_mat[[i]][[j]])+pen_dim[j]]
+        penalty <- penalty + t(temp_coef2) %*% pen_mat[[i]][[j]] %*% temp_coef2
+      }
+      
+        
     }
     
-    gac_obj(params = params,R = R,Emp_Cov = Emp_Cov,cov_func = cov_func,loss = loss, optim_bound=T)
+    gac_obj(params = params,R = R,Emp_Cov = Emp_Cov,cov_func = cov_func,loss = loss,
+            optim_bound=T,pen=smoothness_param*penalty)
     
   }
   
@@ -119,19 +148,19 @@ gac <- function(R,
   }
   
   # Check first evaluation...
-  temp_test <- try(internal_gac_obj(gac_coef = gac_coef_init,design_mat = design_mat,
-                                    R = R,Emp_Cov = Emp_Cov,cov_func = cov_func))
-  if(class(temp_test)=="try.error"){stop("First evaluation of objective function (with param_init) failed.")}
+  temp_test <- try(internal_gac_obj(gac_coef = gac_coef_init))#,design_mat = design_mat,
+                                    # R = R,Emp_Cov = Emp_Cov,cov_func = cov_func))
+  if(class(temp_test)[1]=="try.error"){stop("First evaluation of objective function (with param_init) failed.")}
   rm(temp_test)
   
   
   # Perform optimisation...
   Fit1 <- optim(par = gac_coef_init,
                 fn = internal_gac_obj,
-                design_mat = design_mat,
-                R = R,
-                Emp_Cov = Emp_Cov,
-                cov_func = cov_func,
+                # design_mat = design_mat,
+                # R = R,
+                # Emp_Cov = Emp_Cov,
+                # cov_func = cov_func,
                 # loss = loss,
                 method = "BFGS")
   
@@ -142,17 +171,29 @@ gac <- function(R,
   param_est <- list()
   gac_coef <- list()
   n_gac_coef <- unlist(lapply(design_mat,ncol))
+  penalty <- 0
   for(i in 1:length(design_mat)){
     gac_coef[[i]] <- Fit1$par[sum(n_gac_coef[0:(i-1)])+1:n_gac_coef[i]]
     
     param_est[[i]] <-  matrix(design_mat[[i]] %*% gac_coef[[i]],ncol = ncol(R))
+    
+    ## Smoothness penalty?
+    if(length(pen_mat[[i]])==0){next}
+    pen_dim <- cumsum(c(0,sapply(pen_mat[[i]],ncol)))
+    temp_coef <- gac_coef[[i]][colnames(design_mat[[i]])!="(Intercept)"]
+    for(j in 1:length(pen_mat[[i]])){
+      temp_coef2 <- temp_coef[1:ncol(pen_mat[[i]][[j]])+pen_dim[j]]
+      penalty <- penalty + t(temp_coef2) %*% pen_mat[[i]][[j]] %*% temp_coef2
+    }
   }
   
   output <- list(call=match.call(),
                  R=R,X=X,
                  Cov_Est = cov_func(r=R,params = param_est),
                  param_est=param_est,
-                 gac_coef=gac_coef)
+                 gac_coef=gac_coef,
+                 loss_final = Fit1$value,
+                 penalty = as.numeric(penalty))
   
   class(output) <- "gac"
   return(output)

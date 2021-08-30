@@ -4,14 +4,14 @@ require(data.table)
 require(plot3D)
 require(plot3Drgl)
 require(mvnfast)
-require(splines)
+require(mgcv)
 
 require(roxygen2)
 require(devtools)
 
 setwd(dirname(getActiveDocumentContext()$path))
 
-
+remove.packages("gac")
 # Update package documentation
 document(pkg = ".")
 # Install from local repository
@@ -162,11 +162,10 @@ test_fit <- gac(R = R,
                 Emp_Cov = Cov_R_sim,
                 cov_func = PowExp,
                 param_eqns = list(~1,
-                                  ~bs(x1,df=5,intercept = F),
+                                  ~s(x1,bs="bs"),
                                   ~1),
-                loss="WLSf")
-
-
+                loss="WLSf",
+                smoothness_param = 1e-4)
 
 image(t(test_fit$Cov_Est))
 
@@ -187,7 +186,7 @@ image(test_fit$Cov_Est-nearPD(test_fit$Cov_Est)$mat)
 require(scoringRules)
 
 # Realisations
-actuals <- mvnfast::rmvn(n = 100,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
+actuals <- mvnfast::rmvn(n = 1000,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
 
 cov_mats <- list(Name=c("True","Empirical","Static","GAC"),
                  mat=list(Cov_R,
@@ -202,7 +201,7 @@ for(cov_i in 1:length(cov_mats$Name)){
   for(i in 1:nrow(actuals)){
     
     # Draw sample trajectories
-    traj <- mvnfast::rmvn(n = 250,mu=rep(0,ncol(Cov_R)),sigma = cov_mats$mat[[cov_i]])
+    traj <- mvnfast::rmvn(n = 1000,mu=rep(0,ncol(Cov_R)),sigma = cov_mats$mat[[cov_i]])
     
     # es and vs
     scores[index==i & Name==cov_mats$Name[[cov_i]], es := es_sample(y=actuals[i,],dat = t(traj))]

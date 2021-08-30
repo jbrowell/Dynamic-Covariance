@@ -4,7 +4,7 @@
 \alias{gac_obj}
 \title{Objective functions for covariance functions}
 \usage{
-gac_obj(params, R, Emp_Cov, cov_func, loss = "WLS", ...)
+gac_obj(params, R, Emp_Cov, cov_func, loss = "WLS", pen = 0, ...)
 }
 \arguments{
 \item{params}{A list of parameters to be passed to specified covairance function \code{cov_func}}
@@ -21,6 +21,8 @@ gac_obj(params, R, Emp_Cov, cov_func, loss = "WLS", ...)
  \item{WLSf}{Weighted Leased Squares - weigthing by all correlations}
  \item{LS}{Least Squares}
 }}
+
+\item{pen}{Additional penalty (numeric), e.g. on smoothness, added to loss}
 
 \item{...}{Additional arguments passed to \code{cov_func}}
 }
