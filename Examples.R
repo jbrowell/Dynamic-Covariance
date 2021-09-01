@@ -5,6 +5,7 @@ require(plot3D)
 require(plot3Drgl)
 require(mvnfast)
 require(mgcv)
+require(Matrix)
 
 require(roxygen2)
 require(devtools)
@@ -116,7 +117,7 @@ rm(list = setdiff(ls(), lsf.str()))
 
 
 ## Example with changing parameter ####
-require(Matrix)
+
 
 r <- seq(0,1,length.out=24)
 R <- as.matrix(dist(r))
@@ -224,7 +225,7 @@ scores[,mean(ls),by="Name"]
 
 
 
-
+## Wind and SOlar ####
 ## Notes on data from Ciaran:
 
 # Large RDAs of data, and RMD to load
@@ -233,22 +234,127 @@ scores[,mean(ls),by="Name"]
 
 load("data/windsolar_fc.rda")
 
-zone_dat
+zone_dat[,g_val:=qnorm(u_val)]
+zone_dat[g_val%in%c(-Inf,Inf),g_val:=NA]
 
-uobs <- dcast(zone_dat,
+gobs <- dcast(zone_dat,
               kfold+issueTime~id+lead_time,
-              value.var = c("u_val"),
+              value.var = c("g_val"),
               drop = TRUE)
-setorder(uobs,issueTime)
-uobs[,1:10]
+setorder(gobs,issueTime)
+gobs[,1:10]
 
-WindSolar_Cov <- cor(uobs[,-c(1,2)],use = "pairwise.complete.obs")
+WindSolar_Cov <- cor(gobs[,-c(1,2)],use = "pairwise.complete.obs")
 # image(WindSolar_Cov)
 
 col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
 lattice::levelplot(WindSolar_Cov,xlab="node id", ylab="node id",
                    col.regions=col6(600), cuts=100, at=seq(-0.2,1,0.01),
                    scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+
+
+
+## Wind - Temporal ####
+
+gobs <- dcast(zone_dat[id=="wind_scotland",],
+              kfold+issueTime~id+lead_time,
+              value.var = c("g_val"),
+              drop = TRUE)
+setorder(gobs,issueTime)
+gobs[,1:10]
+
+
+WindScot_Cov <- cor(gobs[,-c(1,2)],use = "pairwise.complete.obs")
+
+col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
+lattice::levelplot(WindScot_Cov,xlab="node id", ylab="node id",
+                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
+                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+
+r <- seq(0,48,by=0.5)
+R <- as.matrix(dist(r))
+
+
+# surf3D(matrix(r,length(r),length(r),byrow = F),
+#        matrix(r,length(r),length(r),byrow = T),
+#        WindScot_Cov,
+#        colvar = WindScot_Cov, colkey = F, facets = F,bty="f",
+#        xlab="Lead-time",ylab="Lead-time",zlab="Covariance",
+#        zlim=c(0,1),theta = -10,phi = 10)
+# plotrgl()
+
+## For correlation, need to fix sigma = 1, so covert to correlation function
+PowExp_cor <- function(params,...){
+  PowExp(params = list(sigma=1,theta=params[[1]],gamma=params[[2]]),...)
+}
+
+
+## Static fit
+WindScot_static_fit <- gac(R = R,
+                           X = list(),
+                           Emp_Cov = WindScot_Cov,
+                           cov_func = PowExp_cor,
+                           param_eqns = list(#~1,
+                                             ~1,
+                                             ~1),
+                           loss="WLS")
+
+
+lattice::levelplot(WindScot_static_fit$Cov_Est,xlab="node id", ylab="node id",
+                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
+                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+
+
+## GAC fit
+
+# "Dist along diagonal"
+N <- length(r)
+Z <- matrix(rep(1:N,N) + rep(1:N,each=N) - 1, N, N)/(2*N-1)
+
+N <- matrix(rep(r,each=length(r)),length(r),length(r))
+Z1 = cos(2*pi*N/24) + cos(2*pi*t(N)/24)
+# image(Z1)
+
+WindScot_gac_fit <- gac(R = R,
+                           X = list(x1=c(Z),
+                                    x2=c(Z1)),
+                           Emp_Cov = WindScot_Cov,
+                           cov_func = PowExp_cor,
+                           param_eqns = list(#~1,
+                             ~s(x1,bs="bs",k=20),
+                             # ~s(x1,bs="bs",k=20)+x2,
+                             # ~s(x2,k=10),
+                             ~1),
+                           loss="WLS",smoothness_param = 0)
+
+
+lattice::levelplot(WindScot_gac_fit$Cov_Est,xlab="node id", ylab="node id",
+                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
+                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+
+
+
+## Additive 2D-fourier term
+PowExp_cor_spec <- function(params,...){
+  PowExp(params = list(sigma=1,theta=params[[1]],gamma=params[[2]]),...) + params[[3]]*Z1
+}
+
+WindScot_gac_fit2 <- gac(R = R,
+                        X = list(x1=c(Z),
+                                 x2=c(Z1)),
+                        Emp_Cov = WindScot_Cov,
+                        cov_func = PowExp_cor_spec,
+                        param_eqns = list(#~1,
+                          ~s(x1,bs="bs",k=20),
+                          ~1,
+                          ~1),
+                        loss="WLS",smoothness_param = 0)
+
+lattice::levelplot(WindScot_gac_fit2$Cov_Est,xlab="node id", ylab="node id",
+                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
+                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+
+
 
 
 

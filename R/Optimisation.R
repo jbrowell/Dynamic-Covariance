@@ -73,7 +73,7 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",pen=0,...){
 #' @keywords Covariance Function
 #' @export
 gac <- function(R,
-                X,
+                X=list(),
                 Emp_Cov,
                 cov_func,
                 param_eqns,
