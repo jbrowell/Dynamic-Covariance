@@ -312,7 +312,7 @@ N <- length(r)
 Z <- matrix(rep(1:N,N) + rep(1:N,each=N) - 1, N, N)/(2*N-1)
 
 N <- matrix(rep(r,each=length(r)),length(r),length(r))
-Z1 = cos(2*pi*N/24) + cos(2*pi*t(N)/24)
+Z1 = cos(2*pi*N/12) + cos(2*pi*t(N)/12)
 # image(Z1)
 
 WindScot_gac_fit <- gac(R = R,
@@ -336,7 +336,7 @@ lattice::levelplot(WindScot_gac_fit$Cov_Est,xlab="node id", ylab="node id",
 
 ## Additive 2D-fourier term
 PowExp_cor_spec <- function(params,...){
-  PowExp(params = list(sigma=1,theta=params[[1]],gamma=params[[2]]),...) + params[[3]]*Z1
+  PowExp(params = list(sigma=1,theta=params[[1]],gamma=params[[2]]),...) + params[[3]]*(2+Z1)
 }
 
 WindScot_gac_fit2 <- gac(R = R,
@@ -348,7 +348,7 @@ WindScot_gac_fit2 <- gac(R = R,
                           ~s(x1,bs="bs",k=20),
                           ~1,
                           ~1),
-                        loss="WLS",smoothness_param = 0)
+                        loss="WLS")
 
 lattice::levelplot(WindScot_gac_fit2$Cov_Est,xlab="node id", ylab="node id",
                    col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
