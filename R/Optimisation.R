@@ -30,12 +30,19 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",pen=0,...){
     mean(((Emp_Cov-Par_cov)/abs(1-cov2cor(Par_cov)))[R!=0]^2) + pen
     
   }else if(loss=="WLSf"){
-    # Weighted least squares of covariance only (VARIANCE excluded!)
+    # Weighted least squares
     mean((abs(cov2cor(Par_cov))*(Emp_Cov-Par_cov))^2) + pen
     
   }else if(loss=="LS"){
     # Least squares (including variance)
     mean((Emp_Cov-Par_cov))^2 + pen
+    
+  }else if(loss=="AL"){
+    # Absolute Loss
+    mean(abs(Emp_Cov-Par_cov)) + pen
+  }else if(loss=="WALf"){
+    # Weighted Absolute
+    mean(abs(cov2cor(Par_cov))*abs(Emp_Cov-Par_cov)) + pen
     
   }else{
     stop("Loss not recognised.")
@@ -55,9 +62,12 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",pen=0,...){
 #' 
 #' @author Jethro Browell, \email{jethro.browell@@glasgow.ac.uk}
 #' @param params R Separation matrix
-#' @param X Some container of covariates, e.g. a list with elements same size as \code{R}
-#' @param Emp_CovEmpirical covaraiance to fit model to
-#' @param cov_func A parametric covarianve function
+#' @param X Some container of covariates, e.g. a list with elements same size as \code{R} or
+#' the same length as \code{data}
+#' @param Emp_Cov Empirical covaraiance to fit model a static model to.
+#' @param data Dataset to fit dynamic covariance model to. \code{ncol(data)} must equal
+#' \code{nrow(R)}
+#' @param cov_func A parametric covarianve function.
 #' @param param_eqns A list of equations for each parameter of \code{cov_func}
 #' @param param_init Parameter values to initialise optimisaion
 #' @param loss Chosen loss function. Options are:
@@ -74,21 +84,44 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",pen=0,...){
 #' @export
 gac <- function(R,
                 X=list(),
-                Emp_Cov,
+                Emp_Cov=NULL,
+                data=NULL,
                 cov_func,
                 param_eqns,
                 param_init=NULL,
                 loss="WLS",
                 smoothness_param=0){
   
+  if(is.null(Emp_Cov) & is.null(data)){stop("One of Emp_Cov or data must be supplied.")}
+  if(!is.null(Emp_Cov)){
+    if(nrow(R)!=nrow(Emp_Cov) | ncol(R)!=ncol(Emp_Cov)){stop("Size of R and Emp_Cov don't match.")}
+  }
+  if(!is.null(data)){
+    
+    if(!is.null(Emp_Cov)){warning("data supplied so Emp_Cov will not used.")}
+    Emp_Cov <- t(data) %*% data
+    
+    if(nrow(R)!=ncol(R) | ncol(R)!=ncol(data)){stop("Size of R and Emp_Cov don't match.")}
+  }
+  
   ## Create modeling table of expanded basis from param_equations
   modelling_table <- data.frame(y=c(Emp_Cov),
                                 r=c(R))
   design_mat <- list()
   pen_mat <- list()
+  dyn_covariates <- c()
   for(i in names(X)){
-    modelling_table[[i]] <- c(X[[i]])
+    if(all(dim(X[[i]]==dim(R)))){
+      # Static component
+      modelling_table[[i]] <- c(X[[i]])
+    }else if(!is.na(data)){
+      # Dynamic component
+      if(length(X[[i]]!=nrow(data))){stop(paste("Length of covarite",i,"does not match data"))}
+      modelling_table[[i]] <- rep(NA,length(R))
+      dyn_covariates <- c(dyn_covariates,i)
+    }
   }
+  
   for(i in 1:length(param_eqns)){
     
     # design_mat[[i]] <- model.matrix(param_eqns[[i]],data = modelling_table)
@@ -107,16 +140,9 @@ gac <- function(R,
   ## Create objective function for model parameters ~ need some penalty on smoothness?
   internal_gac_obj <- function(gac_coef){#,design_mat,R,Emp_Cov,cov_func){
     
-    # Calculate parametric covairance matrix from supplied parameters and equations/design matrix
-    n_gac_coef <- unlist(lapply(design_mat,ncol))
-    params <- list()
+    ## Smoothness penalty?
     penalty <- 0
-    for(i in 1:length(design_mat)){
-      params[[i]] <-  matrix(design_mat[[i]] %*% gac_coef[
-        sum(n_gac_coef[0:(i-1)])+1:n_gac_coef[i]],
-        ncol = ncol(R))
-      
-      ## Smoothness penalty?
+    for(i in 1:length(design_mat)){  
       if(length(pen_mat[[i]])==0){next}
       
       pen_dim <- cumsum(c(0,sapply(pen_mat[[i]],ncol)))
@@ -126,12 +152,52 @@ gac <- function(R,
         temp_coef2 <- temp_coef[1:ncol(pen_mat[[i]][[j]])+pen_dim[j]]
         penalty <- penalty + t(temp_coef2) %*% pen_mat[[i]][[j]] %*% temp_coef2
       }
-      
-        
     }
     
-    gac_obj(params = params,R = R,Emp_Cov = Emp_Cov,cov_func = cov_func,loss = loss,
-            optim_bound=T,pen=smoothness_param*penalty)
+    if(is.null(data)){
+      # Calculate parametric covairance matrix from supplied parameters and equations/design matrix
+      n_gac_coef <- unlist(lapply(design_mat,ncol))
+      params <- list()
+      for(i in 1:length(design_mat)){
+        params[[i]] <-  matrix(design_mat[[i]] %*% gac_coef[
+          sum(n_gac_coef[0:(i-1)])+1:n_gac_coef[i]],
+          ncol = ncol(R))
+        
+      }
+      
+      # Value to return:
+      gac_obj(params = params,R = R,Emp_Cov = Emp_Cov,cov_func = cov_func,loss = loss,
+              optim_bound=T,pen=penalty)
+      
+    }else{
+      
+      n_gac_coef <- unlist(lapply(design_mat,ncol))
+      obj_vlaue <- rep(NA,nrow(data))
+      for(j in 1:nrow(data)){
+        params <- list()
+        for(i in 1:length(design_mat)){
+          
+          # Add covariate for current row [j] of data
+          for(k in which(dyn_covariates %in% colnames(design_mat[[i]]))){
+            design_mat[[i]][dyn_covariates[k]] <- rep(X[[k]][j],length(R))
+          }
+          
+          params[[i]] <-  matrix(design_mat[[i]] %*% gac_coef[
+            sum(n_gac_coef[0:(i-1)])+1:n_gac_coef[i]],
+            ncol = ncol(R))
+          
+        }
+        
+        obj_vlaue[j] <- gac_obj(params = params,R = R,
+                                Emp_Cov = data[j,] %*% t(data[j,]),
+                                cov_func = cov_func,loss = loss,
+                                optim_bound=T,pen=0)
+      }
+      print(mean(obj_vlaue))
+      
+      # Value to return:
+      mean(obj_vlaue) + penalty
+    }
     
   }
   
@@ -149,7 +215,7 @@ gac <- function(R,
   
   # Check first evaluation...
   temp_test <- try(internal_gac_obj(gac_coef = gac_coef_init))#,design_mat = design_mat,
-                                    # R = R,Emp_Cov = Emp_Cov,cov_func = cov_func))
+  # R = R,Emp_Cov = Emp_Cov,cov_func = cov_func))
   if(class(temp_test)[1]=="try.error"){stop("First evaluation of objective function (with param_init) failed.")}
   rm(temp_test)
   
@@ -162,7 +228,9 @@ gac <- function(R,
                 # Emp_Cov = Emp_Cov,
                 # cov_func = cov_func,
                 # loss = loss,
-                method = "BFGS")
+                #
+                # method = "BFGS"
+                method = "Nelder-Mead",hessian = F)
   
   
   

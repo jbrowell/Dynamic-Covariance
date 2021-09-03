@@ -11,14 +11,16 @@ require(roxygen2)
 require(devtools)
 
 setwd(dirname(getActiveDocumentContext()$path))
+source("R/CovarianceFunctions.R")
+source("R/Optimisation.R")
 
-remove.packages("gac")
-# Update package documentation
-document(pkg = ".")
-# Install from local repository
-install(".")
-# Load Package
-require(gac)
+# remove.packages("gac")
+# # Update package documentation
+# document(pkg = ".")
+# # Install from local repository
+# install(".")
+# # Load Package
+# require(gac)
 
 
 ##  faster VS score, half the time on sR... ####
@@ -93,7 +95,20 @@ image(t(Cov_R_sim))
 image(t(Cov_R_sim-Cov_R))
 
 
+# Fit to (static) empirical covariance
 gac_obj(c(1,1,1),R,Cov_R_sim,cov_func=PowExp,loss="WLS")
+
+
+# # Fit to data, sample by sample
+# dim(data_sim)
+# 
+# (t(data_sim) %*% data_sim)/(1+nrow(data_sim))
+# 
+# cov_stream <- matrix(0,ncol(data_sim),ncol(data_sim))
+# for(i in 1:nrow(data_sim)){
+#   cov_stream <- cov_stream + (1/nrow(data_sim))*(data_sim[i,] %*% t(data_sim[i,]))
+# }
+
 
 Fit1 <- optim(par=c(1,1,1),
               gac_obj,
@@ -155,6 +170,20 @@ test_static_fit <- gac(R = R,
                                          ~1,
                                          ~1),
                        loss="WLSf")
+
+## --- Test version using sample data
+test_static_fit_data <- gac(R = R,
+                            X = list(x1=Z),
+                            Emp_Cov = NULL,
+                            data=data_sim,
+                            cov_func = PowExp,
+                            param_eqns = list(~1,
+                                              ~1,
+                                              ~1),
+                            loss="WALf")
+test_static_fit_data$gac_coef
+image(t(test_static_fit_data$Cov_Est))
+## --- ##
 
 
 
@@ -295,8 +324,8 @@ WindScot_static_fit <- gac(R = R,
                            Emp_Cov = WindScot_Cov,
                            cov_func = PowExp_cor,
                            param_eqns = list(#~1,
-                                             ~1,
-                                             ~1),
+                             ~1,
+                             ~1),
                            loss="WLS")
 
 
@@ -316,16 +345,16 @@ Z1 = cos(2*pi*N/12) + cos(2*pi*t(N)/12)
 # image(Z1)
 
 WindScot_gac_fit <- gac(R = R,
-                           X = list(x1=c(Z),
-                                    x2=c(Z1)),
-                           Emp_Cov = WindScot_Cov,
-                           cov_func = PowExp_cor,
-                           param_eqns = list(#~1,
-                             ~s(x1,bs="bs",k=20),
-                             # ~s(x1,bs="bs",k=20)+x2,
-                             # ~s(x2,k=10),
-                             ~1),
-                           loss="WLS",smoothness_param = 0)
+                        X = list(x1=c(Z),
+                                 x2=c(Z1)),
+                        Emp_Cov = WindScot_Cov,
+                        cov_func = PowExp_cor,
+                        param_eqns = list(#~1,
+                          ~s(x1,bs="bs",k=20),
+                          # ~s(x1,bs="bs",k=20)+x2,
+                          # ~s(x2,k=10),
+                          ~1),
+                        loss="WLS",smoothness_param = 0)
 
 
 lattice::levelplot(WindScot_gac_fit$Cov_Est,xlab="node id", ylab="node id",
@@ -340,15 +369,15 @@ PowExp_cor_spec <- function(params,...){
 }
 
 WindScot_gac_fit2 <- gac(R = R,
-                        X = list(x1=c(Z),
-                                 x2=c(Z1)),
-                        Emp_Cov = WindScot_Cov,
-                        cov_func = PowExp_cor_spec,
-                        param_eqns = list(#~1,
-                          ~s(x1,bs="bs",k=20),
-                          ~1,
-                          ~1),
-                        loss="WLS")
+                         X = list(x1=c(Z),
+                                  x2=c(Z1)),
+                         Emp_Cov = WindScot_Cov,
+                         cov_func = PowExp_cor_spec,
+                         param_eqns = list(#~1,
+                           ~s(x1,bs="bs",k=20),
+                           ~1,
+                           ~1),
+                         loss="WLS")
 
 lattice::levelplot(WindScot_gac_fit2$Cov_Est,xlab="node id", ylab="node id",
                    col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
