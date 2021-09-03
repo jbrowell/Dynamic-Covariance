@@ -75,7 +75,7 @@ surf3D(matrix(r,length(r),length(r),byrow = F),
        Cov_R,
        colvar = Cov_R, colkey = F, facets = F,bty="f",
        xlab="Lead-time",ylab="Lead-time",zlab="Covariance",
-       zlim=c(0,1),theta = -10,phi = 10)
+       zlim=c(0,2),theta = -10,phi = 10)
 # plotrgl()
 
 ## Visualisations
@@ -216,10 +216,10 @@ for(cov_i in 1:length(cov_mats$Name)){
 }
 
 
-scores[,mean(es),by="Name"]
-scores[,mean(vs_0_5),by="Name"]
-scores[,mean(vs_1),by="Name"]
-scores[,mean(ls),by="Name"]
+print(setorder(scores[,mean(es),by="Name"],V1))
+print(setorder(scores[,mean(vs_0_5),by="Name"],V1))
+print(setorder(scores[,mean(vs_1),by="Name"],V1))
+print(setorder(scores[,mean(ls),by="Name"],V1))
 
 
 
@@ -249,7 +249,7 @@ WindSolar_Cov <- cor(gobs[,-c(1,2)],use = "pairwise.complete.obs")
 
 col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
 lattice::levelplot(WindSolar_Cov,xlab="node id", ylab="node id",
-                   col.regions=col6(600), cuts=100, at=seq(-0.2,1,0.01),
+                   col.regions=col6(600), cuts=100, at=seq(-0,1,0.01),
                    scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
 
 
@@ -268,7 +268,7 @@ WindScot_Cov <- cor(gobs[,-c(1,2)],use = "pairwise.complete.obs")
 
 col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
 lattice::levelplot(WindScot_Cov,xlab="node id", ylab="node id",
-                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
+                   col.regions=col6(600), cuts=100, at=seq(0,1,0.01),
                    scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
 
 r <- seq(0,48,by=0.5)
@@ -329,8 +329,84 @@ WindScot_gac_fit <- gac(R = R,
 
 
 lattice::levelplot(WindScot_gac_fit$Cov_Est,xlab="node id", ylab="node id",
-                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
+                   col.regions=col6(600), cuts=100, at=seq(0,1,0.01),
                    scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+
+
+
+
+modelling_table <- data.frame(y=c(WindScot_Cov),
+                              r=c(R),
+                              x1=c(Z))
+
+plot(x=modelling_table$r,
+     y=modelling_table$y,
+     col="grey",pch=".")
+
+
+modelling_table$y_est <- c(WindScot_static_fit$Cov_Est)
+points(x=modelling_table$r,
+     y=modelling_table$y_est,
+     col="red")
+
+
+modelling_table$y_est <- c(WindScot_gac_fit$Cov_Est)
+points(x=modelling_table$r,
+       y=modelling_table$y_est,
+       col="blue")
+
+
+
+
+
+
+scatter3D(modelling_table$r,
+          modelling_table$x1,
+          modelling_table$y,
+          col = "red",xlab="time diff",ylab="dist_along diag",zlab="covariance")
+
+plotrgl()
+
+
+plot1 <- plotly::plot_ly(x=modelling_table$r,
+                y=modelling_table$x1,
+                z=modelling_table$y, type="scatter3d", mode="markers", color = I("grey"),
+                marker = list(size = 1,opacity = 0.5),
+                      name = "empirical")
+
+modelling_table$y_est <- c(WindScot_static_fit$Cov_Est)
+plot2 <- plotly::plot_ly(x=modelling_table$r,
+                y=modelling_table$x1,
+                z=modelling_table$y_est, type="scatter3d", mode="markers", color = I("red"),
+                marker = list(size = 1,opacity = 0.5),
+                name = "static")
+
+
+
+modelling_table$y_est <- c(WindScot_gac_fit$Cov_Est)
+plot3 <- plotly::plot_ly(x=modelling_table$r,
+                         y=modelling_table$x1,
+                         z=modelling_table$y_est, type="scatter3d", mode="markers", color = I("blue"),
+                         marker = list(size = 1,opacity = 0.5),
+                         name = "gac")
+
+plot <- plotly::subplot(plot1,plot2,plot3,nrows = 1)
+plotly::layout(plot, scene = list(xaxis = list(title = 'dt [hours]'), yaxis = list(title = 'dist along diag [-]'), zaxis = list(title = 'covariance [-]')))
+
+invisible(gc())
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
