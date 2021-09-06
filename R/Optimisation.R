@@ -177,6 +177,7 @@ gac <- function(R,
     }else{
       
       obj_vlaue <- rep(NA,nrow(data))
+      E_after_j <- matrix(0,nrow(R),ncol(R))
       for(j in 1:nrow(data)){
         params <- list()
         for(i in 1:length(design_mat)){
@@ -192,15 +193,22 @@ gac <- function(R,
           
         }
         
-        obj_vlaue[j] <- gac_obj(params = params,R = R,
-                                Emp_Cov = data[j,] %*% t(data[j,]),
-                                cov_func = cov_func,loss = loss,
-                                optim_bound=T,pen=0)
+        Par_cov <- cov_func(r=R,params = params,optim_bound=T)
+        
+        if(loss=="LS"){
+          E_after_j <- E_after_j + data[j,] %*% t(data[j,]) - Par_cov
+          
+        }else{
+          stop("Only loss=\"LS\" available if data!=NULL")
+        }
       }
-      print(mean(obj_vlaue))
+      
+      ## Least Squares
+      obj_vlaue <- sum((E_after_j/j)^2)
       
       # Value to return:
-      mean(obj_vlaue) + penalty*smoothness_param
+      print(obj_vlaue)
+      obj_vlaue + penalty*smoothness_param
     }
     
   }
@@ -233,9 +241,9 @@ gac <- function(R,
                 # cov_func = cov_func,
                 # loss = loss,
                 #
-                method = "BFGS"
-                # method = "Nelder-Mead",hessian = F ## Doesn't seem to work as well
-                )
+                # method = "BFGS"
+                method = "Nelder-Mead",hessian = F
+  )
   
   
   

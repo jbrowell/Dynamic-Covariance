@@ -170,6 +170,7 @@ test_static_fit <- gac(R = R,
                                          ~1,
                                          ~1),
                        loss="WLSf")
+test_static_fit$gac_coef
 
 ## --- Test version using sample data
 test_static_fit_data <- gac(R = R,
@@ -180,7 +181,7 @@ test_static_fit_data <- gac(R = R,
                             param_eqns = list(~1,
                                               ~1,
                                               ~1),
-                            loss="WALf")
+                            loss="LS")
 test_static_fit_data$gac_coef
 image(t(test_static_fit_data$Cov_Est))
 ## --- ##
@@ -345,7 +346,8 @@ Z1 = cos(2*pi*N/12) + cos(2*pi*t(N)/12)
 # image(Z1)
 
 WindScot_gac_fit <- gac(R = R,
-                        X = list(x1=c(Z)),
+                        X = list(x1=Z,
+                                 x2=Z1),
                         Emp_Cov = WindScot_Cov,
                         cov_func = PowExp_cor,
                         param_eqns = list(#~1,
