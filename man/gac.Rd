@@ -6,7 +6,7 @@
 \usage{
 gac(
   R,
-  X,
+  X = list(),
   Emp_Cov,
   cov_func,
   param_eqns,
