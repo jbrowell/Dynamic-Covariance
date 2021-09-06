@@ -241,8 +241,8 @@ gac <- function(R,
                 # cov_func = cov_func,
                 # loss = loss,
                 #
-                # method = "BFGS"
-                method = "Nelder-Mead",hessian = F
+                method = "BFGS"
+                # method = "Nelder-Mead",hessian = F
   )
   
   
