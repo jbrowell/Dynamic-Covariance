@@ -141,11 +141,11 @@ gac <- function(R,
   ## Create objective function for model parameters ~ need some penalty on smoothness?
   internal_gac_obj <- function(gac_coef){#,design_mat,R,Emp_Cov,cov_func){
     
-    ## Smoothness penalty?
-    penalty <- 0
     
     n_gac_coef <- unlist(lapply(design_mat,ncol))
     
+    ## Smoothness penalty?
+    penalty <- 0
     for(i in 1:length(design_mat)){  
       if(length(pen_mat[[i]])==0){next}
       
@@ -158,6 +158,7 @@ gac <- function(R,
       }
     }
     
+    ## Main loss
     if(is.null(data)){
       # Calculate parametric covairance matrix from supplied parameters and equations/design matrix
       
@@ -171,7 +172,7 @@ gac <- function(R,
       
       # Value to return:
       gac_obj(params = params,R = R,Emp_Cov = Emp_Cov,cov_func = cov_func,loss = loss,
-              optim_bound=T,pen=penalty)
+              optim_bound=T,pen=penalty*smoothness_param)
       
     }else{
       
@@ -199,7 +200,7 @@ gac <- function(R,
       print(mean(obj_vlaue))
       
       # Value to return:
-      mean(obj_vlaue) + penalty
+      mean(obj_vlaue) + penalty*smoothness_param
     }
     
   }
@@ -232,8 +233,9 @@ gac <- function(R,
                 # cov_func = cov_func,
                 # loss = loss,
                 #
-                # method = "BFGS"
-                method = "Nelder-Mead",hessian = F)
+                method = "BFGS"
+                # method = "Nelder-Mead",hessian = F ## Doesn't seem to work as well
+                )
   
   
   
