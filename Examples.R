@@ -169,7 +169,7 @@ test_static_fit <- gac(R = R,
                        param_eqns = list(~1,
                                          ~1,
                                          ~1),
-                       loss="WLSf")
+                       loss="LS")
 test_static_fit$gac_coef
 
 ## --- Test version using sample data

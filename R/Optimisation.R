@@ -35,7 +35,7 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",pen=0,...){
     
   }else if(loss=="LS"){
     # Least squares (including variance)
-    mean((Emp_Cov-Par_cov))^2 + pen
+    mean((Emp_Cov-Par_cov)^2) + pen
     
   }else if(loss=="AL"){
     # Absolute Loss
@@ -204,7 +204,7 @@ gac <- function(R,
       }
       
       ## Least Squares
-      obj_vlaue <- sum((E_after_j/j)^2)
+      obj_vlaue <- mean((E_after_j/j)^2)
       
       # Value to return:
       print(obj_vlaue)
