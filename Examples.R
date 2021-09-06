@@ -250,12 +250,12 @@ WindSolar_Cov <- cor(gobs[,-c(1,2)],use = "pairwise.complete.obs")
 col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
 lattice::levelplot(WindSolar_Cov,xlab="node id", ylab="node id",
                    col.regions=col6(600), cuts=100, at=seq(-0,1,0.01),
-                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+                   scales=list(x=list(at = seq(0,48,12),rot=45),y=list(rot=45),tck=0.3,cex=0.1))
 
 
 
 ## Wind - Temporal ####
-
+# issue time dependency
 gobs <- dcast(zone_dat[id=="wind_scotland",],
               kfold+issueTime~id+lead_time,
               value.var = c("g_val"),
@@ -267,9 +267,10 @@ gobs[,1:10]
 WindScot_Cov <- cor(gobs[,-c(1,2)],use = "pairwise.complete.obs")
 
 col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
-lattice::levelplot(WindScot_Cov,xlab="node id", ylab="node id",
-                   col.regions=col6(600), cuts=100, at=seq(0,1,0.01),
-                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+lattice::levelplot(WindScot_Cov,,xlab = "lead time [hours]",ylab = "lead time [hours]",
+                   col.regions=col6(600), cuts=100, at=seq(-.1,1,0.01),
+                   scales=list(x=list(at = seq(1,97,12),lab=seq(0,96,12)/2,rot=45),
+                               y=list(at = seq(1,97,12),lab=seq(0,96,12)/2,rot=45),tck=0.3,cex=0.75))
 
 r <- seq(0,48,by=0.5)
 R <- as.matrix(dist(r))
