@@ -111,7 +111,8 @@ gac <- function(R,
   pen_mat <- list()
   dyn_covariates <- c()
   for(i in names(X)){
-    if(all(dim(X[[i]]==dim(R)))){
+    # if(all(dim(X[[i]]==dim(R)))){
+    if(length(X[[i]])==length(R)){
       # Static component
       modelling_table[[i]] <- c(X[[i]])
     }else if(!is.na(data)){
@@ -142,6 +143,9 @@ gac <- function(R,
     
     ## Smoothness penalty?
     penalty <- 0
+    
+    n_gac_coef <- unlist(lapply(design_mat,ncol))
+    
     for(i in 1:length(design_mat)){  
       if(length(pen_mat[[i]])==0){next}
       
@@ -156,7 +160,7 @@ gac <- function(R,
     
     if(is.null(data)){
       # Calculate parametric covairance matrix from supplied parameters and equations/design matrix
-      n_gac_coef <- unlist(lapply(design_mat,ncol))
+      
       params <- list()
       for(i in 1:length(design_mat)){
         params[[i]] <-  matrix(design_mat[[i]] %*% gac_coef[
@@ -171,7 +175,6 @@ gac <- function(R,
       
     }else{
       
-      n_gac_coef <- unlist(lapply(design_mat,ncol))
       obj_vlaue <- rep(NA,nrow(data))
       for(j in 1:nrow(data)){
         params <- list()

@@ -345,8 +345,7 @@ Z1 = cos(2*pi*N/12) + cos(2*pi*t(N)/12)
 # image(Z1)
 
 WindScot_gac_fit <- gac(R = R,
-                        X = list(x1=c(Z),
-                                 x2=c(Z1)),
+                        X = list(x1=c(Z)),
                         Emp_Cov = WindScot_Cov,
                         cov_func = PowExp_cor,
                         param_eqns = list(#~1,
