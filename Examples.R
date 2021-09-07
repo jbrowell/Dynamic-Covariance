@@ -294,11 +294,12 @@ setorder(gobs,issueTime)
 gobs[,1:10]
 
 
-WindScot_Cov <- cor(gobs[,-c(1,2)],use = "pairwise.complete.obs")
+WindScot_Cov <- cor(gobs[hour(issueTime)==12,][,-c(1,2)],use = "pairwise.complete.obs")
+WindScot_Cov <- cor(gobs[hour(issueTime)==0,][,-c(1,2)],use = "pairwise.complete.obs")
 
 col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
 lattice::levelplot(WindScot_Cov,xlab="node id", ylab="node id",
-                   col.regions=col6(600), cuts=100, at=seq(0,1,0.01),
+                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
                    scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
 
 r <- seq(0,48,by=0.5)
