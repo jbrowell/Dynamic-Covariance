@@ -99,7 +99,7 @@ gac <- function(R,
   if(!is.null(data)){
     
     if(!is.null(Emp_Cov)){warning("data supplied so Emp_Cov will not used.")}
-    Emp_Cov <- t(data) %*% data
+    Emp_Cov <- cov(data)
     
     if(nrow(R)!=ncol(R) | ncol(R)!=ncol(data)){stop("Size of R and Emp_Cov don't match.")}
   }
@@ -107,32 +107,33 @@ gac <- function(R,
   ## Create modeling table of expanded basis from param_equations
   modelling_table <- data.frame(y=c(Emp_Cov),
                                 r=c(R))
+  
   design_mat <- list()
   pen_mat <- list()
   dyn_covariates <- c()
+  gam_prefits <- list()
   for(i in names(X)){
     # if(all(dim(X[[i]]==dim(R)))){
     if(length(X[[i]])==length(R)){
       # Static component
       modelling_table[[i]] <- c(X[[i]])
-    }else if(!is.na(data)){
+    }else if(!is.null(data)){
       # Dynamic component
-      if(length(X[[i]]!=nrow(data))){stop(paste("Length of covarite",i,"does not match data"))}
-      modelling_table[[i]] <- rep(NA,length(R))
+      if(length(X[[i]])!=nrow(data)){stop(paste("Length of covarite",i,"does not match data"))}
+      modelling_table[[i]] <- quantile(X[[i]],probs=seq(0,1,length.out=length(R)))  #rep(NA,length(R))
       dyn_covariates <- c(dyn_covariates,i)
     }
   }
   
   for(i in 1:length(param_eqns)){
     
-    # design_mat[[i]] <- model.matrix(param_eqns[[i]],data = modelling_table)
+    gam_prefits[[i]] <- gam(update(param_eqns[[i]],"y~."),data = modelling_table,fit = F)
     
-    gam_prefit <- gam(update(param_eqns[[i]],"y~."),data = modelling_table,fit = F)
-    
-    design_mat[[i]] <- gam_prefit$X
+    # Design matrix (for single row of "data")
+    design_mat[[i]] <- gam_prefits[[i]]$X
     
     # Penalty matrix
-    pen_mat[[i]] <- gam_prefit$S
+    pen_mat[[i]] <- gam_prefits[[i]]$S
     
   }
   
@@ -146,7 +147,7 @@ gac <- function(R,
     
     ## Smoothness penalty?
     penalty <- 0
-    for(i in 1:length(design_mat)){  
+    for(i in 1:length(design_mat)){
       if(length(pen_mat[[i]])==0){next}
       
       pen_dim <- cumsum(c(0,sapply(pen_mat[[i]],ncol)))
@@ -182,9 +183,13 @@ gac <- function(R,
         params <- list()
         for(i in 1:length(design_mat)){
           
-          # Add covariate for current row [j] of data
+          # Compute covariate/value of basis for current row [j] of data
           for(k in which(dyn_covariates %in% colnames(design_mat[[i]]))){
-            design_mat[[i]][dyn_covariates[k]] <- rep(X[[k]][j],length(R))
+            
+            design_mat[[i]][,dyn_covariates[k]] <- approx(x=modelling_table[[dyn_covariates[k]]],
+                                                          y=gam_prefits[[i]]$X[,dyn_covariates[k]],
+                                                          xout = rep(X[[k]][j],length(R)))$y
+                                                          
           }
           
           params[[i]] <-  matrix(design_mat[[i]] %*% gac_coef[
@@ -198,8 +203,11 @@ gac <- function(R,
         if(loss=="LS"){
           E_after_j <- E_after_j + data[j,] %*% t(data[j,]) - Par_cov
           
+        }else if(loss=="WLS"){
+          E_after_j <- E_after_j + (data[j,] %*% t(data[j,]) - Par_cov)/abs(1-cov2cor(Par_cov))
+          E_after_j[(R==0)] <- 0
         }else{
-          stop("Only loss=\"LS\" available if data!=NULL")
+          stop("Only loss=\"LS\" and \"WLS\" available if data!=NULL")
         }
       }
       
@@ -212,7 +220,7 @@ gac <- function(R,
     }
     
   }
-  
+  # debug(internal_gac_obj)
   
   ## Estimate parameters
   
@@ -271,6 +279,8 @@ gac <- function(R,
   output <- list(call=match.call(),
                  R=R,X=X,
                  Cov_Est = cov_func(r=R,params = param_est),
+                 modelling_table = modelling_table,
+                 gam_prefits = gam_prefits,
                  param_est=param_est,
                  gac_coef=gac_coef,
                  loss_final = Fit1$value,

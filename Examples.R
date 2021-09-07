@@ -131,7 +131,87 @@ rm(list = setdiff(ls(), lsf.str()))
 
 
 
-## Example with changing parameter ####
+
+
+## Isotropic Example ####
+
+
+r <- seq(0,1,length.out=10)
+R <- as.matrix(dist(r))
+
+N <- 10000
+x <- runif(N)
+# theta_fn <- function(x){x^2+1}
+# theta_fn <- function(x){1/(1+exp(-10*(x-0.5)))+0.5}
+theta_fn <- function(x){sin(2*pi*x)+2}
+
+# True Cov
+image(t(PowExp(R,params = list(sigma=1,theta=min(theta_fn(x)),gamm=1))))
+image(t(PowExp(R,params = list(sigma=1,theta=max(theta_fn(x)),gamm=1))))
+
+# Empirical from simulation
+Z <- matrix(NA,N,ncol(R))
+for(i in 1:N){
+  Z[i,] <- mvnfast::rmvn(n = 1,
+                         mu=rep(0,ncol(R)),sigma = PowExp(R,params = list(sigma=1,theta=theta_fn(x[i]),gamm=1)))
+}
+
+image(t(cov(Z)))
+
+image(t(cov(Z[x<0.5,])))
+image(t(cov(Z[x>0.5,])))
+
+
+PowExp_1param <- function(params,...){PowExp(params = list(sigma=1,theta=params[[1]],gamma=1),...)}
+
+iso_ex_static_fit <- gac(R = R,
+                       Emp_Cov = cov(Z),
+                       cov_func = PowExp_1param,
+                       param_eqns = list(~1),
+                       loss="WLS")
+iso_ex_static_fit$gac_coef
+
+
+iso_ex_linear_fit <- gac(R = R,
+                            X = list(x1=x),
+                            Emp_Cov = NULL,
+                            data=Z,
+                            cov_func = PowExp_1param,
+                            param_eqns = list(~x1),
+                            loss="WLS")
+
+iso_ex_smooth_fit <- gac(R = R,
+                         X = list(x1=x),
+                         Emp_Cov = NULL,
+                         data=Z,
+                         cov_func = PowExp_1param,
+                         param_eqns = list(~s(x1,bs="cr",k=10)),
+                         loss="WLS",smoothness_param = 0.1)
+
+matplot(x=iso_ex_smooth_fit$modelling_table$x1,
+        y=iso_ex_smooth_fit$gam_prefits[[1]]$X,type="l")
+
+
+matplot(x=iso_ex_smooth_fit$modelling_table$x1,
+        y=iso_ex_smooth_fit$gam_prefits[[1]]$X * 
+          matrix(rep(iso_ex_smooth_fit$gac_coef[[1]],each=nrow(iso_ex_smooth_fit$gam_prefits[[1]]$X)),
+                 ncol=ncol(iso_ex_smooth_fit$gam_prefits[[1]]$X)),
+        type="l")
+lines(iso_ex_smooth_fit$modelling_table$x1,
+      iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],col=3)
+
+# iso_ex_smooth_fit$gam_prefits[[1]]$smooth[[1]]
+
+
+## Plot different estimates of theta_fn:
+plot(x[order(x)],theta_fn(x)[order(x)],type="l",ylim=c(1,3))
+lines(x,iso_ex_linear_fit$gac_coef[[1]][1]+iso_ex_linear_fit$gac_coef[[1]][2]*x,col=2)
+lines(iso_ex_smooth_fit$modelling_table$x1,
+     iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],col=3)
+
+
+
+## Anisotropic Example ####
 
 
 r <- seq(0,1,length.out=24)
