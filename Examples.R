@@ -6,6 +6,8 @@ require(plot3Drgl)
 require(mvnfast)
 require(mgcv)
 require(Matrix)
+require(scoringRules)
+require(xtable)
 
 require(roxygen2)
 require(devtools)
@@ -49,7 +51,11 @@ vs_sample_quick <- function (y, dat, w = NULL, p = 0.5) {
   return(2*out)
 }
 
-
+## Entropy Score
+cov_entropy <- function(R_true,R_est){
+  RR <- solve(R_true)%*%R_est
+  sum(RR[diag(ncol(RR))]) - log(det(RR)) - ncol(RR)
+}
 
 
 
@@ -211,8 +217,83 @@ lines(iso_ex_linear_fit$modelling_table$x1,
 lines(iso_ex_smooth_fit$modelling_table$x1,
       iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],col=3)
 
+theta_fn_smooth_pred <- approxfun(x = iso_ex_smooth_fit$modelling_table$x1,
+                                  y = iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],
+                                  rule = 2)
 
-## To do: Evaluation of fits
+
+## Evaluation of fits
+
+
+# Realisations
+N_oos <- 1000
+x_oos <- runif(N_oos)
+
+# Empirical from simulation
+Z_oos <- matrix(NA,N_oos,ncol(R))
+for(i in 1:N_oos){
+  Z_oos[i,] <- mvnfast::rmvn(n = 1,
+                             mu=rep(0,ncol(R)),sigma = PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1)))
+}
+
+cov_mats <- list(Name=c("True","Static Empirical","GAC"))
+scores <- data.table(index=rep(1:nrow(Z_oos),length(cov_mats$Name)),
+                     Name=rep(cov_mats$Name,each=nrow(Z_oos)))
+# es=NULL,vs=NULL,`Log Score`=NULL)
+
+for(cov_i in 1:length(cov_mats$Name)){
+  for(i in 1:nrow(Z_oos)){
+    
+    if(cov_mats$Name[cov_i]=="True"){
+      cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1))  
+    }else if(cov_mats$Name[cov_i]=="Static Empirical"){
+      cov_temp <- cov(Z)
+    }else if(cov_mats$Name[cov_i]=="GAC"){
+      cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn_smooth_pred(x_oos[i]),gamma=1))  
+    }else{
+      stop("cov_i not recognised.")
+    }
+    
+    
+    # Draw sample trajectories
+    traj <- mvnfast::rmvn(n = 1000,
+                          mu=rep(0,ncol(R)),sigma = cov_temp)
+    
+    # es and vs
+    scores[index==i & Name==cov_mats$Name[[cov_i]], es := es_sample(y=Z_oos[i,],dat = t(traj))]
+    scores[index==i & Name==cov_mats$Name[[cov_i]], vs_0_5 := vs_sample_quick(y=Z_oos[i,],dat = t(traj), p = 0.5)]
+    scores[index==i & Name==cov_mats$Name[[cov_i]], vs_1 := vs_sample_quick(y=Z_oos[i,],dat = t(traj), p = 1)]
+    
+    # log score
+    scores[index==i & Name==cov_mats$Name[[cov_i]], ls := -log(mvnfast::dmvn(X = Z_oos[i,],mu = rep(0,ncol(R)),sigma = cov_temp))]
+    
+    # Entropy
+    scores[index==i & Name==cov_mats$Name[[cov_i]], entropy := 
+             cov_entropy(R_true = PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1)),
+                         R_est = cov_temp)]
+           
+  }
+}
+rm(cov_temp)
+
+print(setorder(scores[,mean(es),by="Name"],V1))
+print(setorder(scores[,mean(vs_0_5),by="Name"],V1))
+print(setorder(scores[,mean(vs_1),by="Name"],V1))
+print(setorder(scores[,mean(ls),by="Name"],V1))
+print(setorder(scores[,mean(entropy),by="Name"],V1))
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -299,7 +380,7 @@ image(Cov_R_sim-nearPD(Cov_R_sim)$mat)
 image(test_fit$Cov_Est-nearPD(test_fit$Cov_Est)$mat)
 
 ## Evaluate with log score, variogram score and energy score
-require(scoringRules)
+
 
 # Realisations
 actuals <- mvnfast::rmvn(n = 1000,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
