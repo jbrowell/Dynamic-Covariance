@@ -133,17 +133,18 @@ rm(list = setdiff(ls(), lsf.str()))
 
 
 
-## Isotropic Example ####
+## Dynamic Isotropic Example ####
 
 
-r <- seq(0,1,length.out=10)
+r <- seq(0,1,length.out=6)
 R <- as.matrix(dist(r))
 
-N <- 10000
+N <- 2000
 x <- runif(N)
 # theta_fn <- function(x){x^2+1}
 # theta_fn <- function(x){1/(1+exp(-10*(x-0.5)))+0.5}
 theta_fn <- function(x){sin(2*pi*x)+2}
+hist(theta_fn(x))
 
 # True Cov
 image(t(PowExp(R,params = list(sigma=1,theta=min(theta_fn(x)),gamm=1))))
@@ -153,7 +154,7 @@ image(t(PowExp(R,params = list(sigma=1,theta=max(theta_fn(x)),gamm=1))))
 Z <- matrix(NA,N,ncol(R))
 for(i in 1:N){
   Z[i,] <- mvnfast::rmvn(n = 1,
-                         mu=rep(0,ncol(R)),sigma = PowExp(R,params = list(sigma=1,theta=theta_fn(x[i]),gamm=1)))
+                         mu=rep(0,ncol(R)),sigma = PowExp(R,params = list(sigma=1,theta=theta_fn(x[i]),gamma=1)))
 }
 
 image(t(cov(Z)))
@@ -165,33 +166,35 @@ image(t(cov(Z[x>0.5,])))
 PowExp_1param <- function(params,...){PowExp(params = list(sigma=1,theta=params[[1]],gamma=1),...)}
 
 iso_ex_static_fit <- gac(R = R,
-                       Emp_Cov = cov(Z),
-                       cov_func = PowExp_1param,
-                       param_eqns = list(~1),
-                       loss="WLS")
+                         Emp_Cov = cov(Z),
+                         cov_func = PowExp_1param,
+                         param_eqns = list(~1),
+                         loss="WLS")
 iso_ex_static_fit$gac_coef
 
 
 iso_ex_linear_fit <- gac(R = R,
-                            X = list(x1=x),
-                            Emp_Cov = NULL,
-                            data=Z,
-                            cov_func = PowExp_1param,
-                            param_eqns = list(~x1),
-                            loss="WLS")
+                         X = list(x1=x),
+                         Emp_Cov = NULL,
+                         data = Z,
+                         cov_func = PowExp_1param,
+                         param_eqns = list(~x1),
+                         loss="WLS")
+
 
 iso_ex_smooth_fit <- gac(R = R,
                          X = list(x1=x),
                          Emp_Cov = NULL,
-                         data=Z,
+                         data = Z,
                          cov_func = PowExp_1param,
-                         param_eqns = list(~s(x1,bs="cr",k=10)),
-                         loss="WLS",smoothness_param = 0.1)
+                         param_eqns = list(~s(x1,bs="cr",k=7)),
+                         loss="WLS",smoothness_param = 0)
 
+# Plot Basis
 matplot(x=iso_ex_smooth_fit$modelling_table$x1,
         y=iso_ex_smooth_fit$gam_prefits[[1]]$X,type="l")
 
-
+# Plot Fit
 matplot(x=iso_ex_smooth_fit$modelling_table$x1,
         y=iso_ex_smooth_fit$gam_prefits[[1]]$X * 
           matrix(rep(iso_ex_smooth_fit$gac_coef[[1]],each=nrow(iso_ex_smooth_fit$gam_prefits[[1]]$X)),
@@ -200,14 +203,16 @@ matplot(x=iso_ex_smooth_fit$modelling_table$x1,
 lines(iso_ex_smooth_fit$modelling_table$x1,
       iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],col=3)
 
-# iso_ex_smooth_fit$gam_prefits[[1]]$smooth[[1]]
-
 
 ## Plot different estimates of theta_fn:
 plot(x[order(x)],theta_fn(x)[order(x)],type="l",ylim=c(1,3))
-lines(x,iso_ex_linear_fit$gac_coef[[1]][1]+iso_ex_linear_fit$gac_coef[[1]][2]*x,col=2)
+lines(iso_ex_linear_fit$modelling_table$x1,
+      iso_ex_linear_fit$gam_prefits[[1]]$X %*% iso_ex_linear_fit$gac_coef[[1]],col=2)
 lines(iso_ex_smooth_fit$modelling_table$x1,
-     iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],col=3)
+      iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],col=3)
+
+
+## To do: Evaluation of fits
 
 
 
@@ -458,8 +463,8 @@ plot(x=modelling_table$r,
 
 modelling_table$y_est <- c(WindScot_static_fit$Cov_Est)
 points(x=modelling_table$r,
-     y=modelling_table$y_est,
-     col="red")
+       y=modelling_table$y_est,
+       col="red")
 
 
 modelling_table$y_est <- c(WindScot_gac_fit$Cov_Est)
@@ -481,17 +486,17 @@ plotrgl()
 
 
 plot1 <- plotly::plot_ly(x=modelling_table$r,
-                y=modelling_table$x1,
-                z=modelling_table$y, type="scatter3d", mode="markers", color = I("grey"),
-                marker = list(size = 1,opacity = 0.5),
-                      name = "empirical")
+                         y=modelling_table$x1,
+                         z=modelling_table$y, type="scatter3d", mode="markers", color = I("grey"),
+                         marker = list(size = 1,opacity = 0.5),
+                         name = "empirical")
 
 modelling_table$y_est <- c(WindScot_static_fit$Cov_Est)
 plot2 <- plotly::plot_ly(x=modelling_table$r,
-                y=modelling_table$x1,
-                z=modelling_table$y_est, type="scatter3d", mode="markers", color = I("red"),
-                marker = list(size = 1,opacity = 0.5),
-                name = "static")
+                         y=modelling_table$x1,
+                         z=modelling_table$y_est, type="scatter3d", mode="markers", color = I("red"),
+                         marker = list(size = 1,opacity = 0.5),
+                         name = "static")
 
 
 

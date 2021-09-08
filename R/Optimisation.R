@@ -69,7 +69,7 @@ gac_obj <- function(params,R,Emp_Cov,cov_func,loss="WLS",pen=0,...){
 #' \code{nrow(R)}
 #' @param cov_func A parametric covarianve function.
 #' @param param_eqns A list of equations for each parameter of \code{cov_func}
-#' @param param_init Parameter values to initialise optimisaion
+#' @param param_init Parameter values to initialise optimisaion (constant/intercept parameters only)
 #' @param loss Chosen loss function. Options are:
 #' \itemize{
 #'  \item{WLS}{Weighted Leased Squares - weigthing by correlation}
@@ -88,7 +88,7 @@ gac <- function(R,
                 data=NULL,
                 cov_func,
                 param_eqns,
-                param_init=NULL,
+                param_init=rep(1,length(param_eqns)),
                 loss="WLS",
                 smoothness_param=0){
   
@@ -129,6 +129,8 @@ gac <- function(R,
     
     gam_prefits[[i]] <- gam(update(param_eqns[[i]],"y~."),data = modelling_table,fit = F)
     
+    colnames(gam_prefits[[i]]$X) <- gam_prefits[[i]]$term.names
+    
     # Design matrix (for single row of "data")
     design_mat[[i]] <- gam_prefits[[i]]$X
     
@@ -137,6 +139,32 @@ gac <- function(R,
     
   }
   
+  
+  ## Construct design mat for dynamic components
+  if(!is.null(data)){
+    
+    design_dyn_mat <- list()  
+    for(i in 1:length(param_eqns)){
+      
+      design_dyn_mat[[i]] <- data.frame(id=1:nrow(data))
+      
+      # Cycle through covariates
+      for(k in dyn_covariates){
+        
+        design_dyn_mat[[i]][,k] <- X[[k]]
+        
+        # Cycle through each basis of covariate k (STRING MATCHING NOT ROBUST!!!)
+        for(k2 in colnames(design_mat[[i]])[
+          grep(pattern = paste0("(",k,")"),colnames(design_mat[[i]]))] # linear terms ~ "k"
+        ){
+          
+          design_dyn_mat[[i]][,k2] <- approx(x=modelling_table[[k]],
+                                             y=gam_prefits[[i]]$X[,k2],
+                                             xout = design_dyn_mat[[i]][,k])$y
+        }
+      }
+    }
+  }
   
   
   ## Create objective function for model parameters ~ need some penalty on smoothness?
@@ -183,14 +211,39 @@ gac <- function(R,
         params <- list()
         for(i in 1:length(design_mat)){
           
-          # Compute covariate/value of basis for current row [j] of data
-          for(k in which(dyn_covariates %in% colnames(design_mat[[i]]))){
+          ## Compute covariate/value of basis for current row [j] of data
+          
+          ### < This does not work as intended! >
+          # for(k in dyn_covariates[dyn_covariates %in% colnames(design_mat[[i]])]){
+          #   
+          #   design_mat[[i]][,k] <- approx(x=modelling_table[[k]],
+          #                                 y=gam_prefits[[i]]$X[,k],
+          #                                 xout = rep(X[[k]][j],length(R)))$y
+          #   
+          # }
+          ### < This does not work as intended! >
+          
+          # Cycle through covariates
+          for(k in dyn_covariates){
             
-            design_mat[[i]][,dyn_covariates[k]] <- approx(x=modelling_table[[dyn_covariates[k]]],
-                                                          y=gam_prefits[[i]]$X[,dyn_covariates[k]],
-                                                          xout = rep(X[[k]][j],length(R)))$y
-                                                          
+            # Cycle through each basis of covariate k (STRING MATCHING NOT ROBUST!!!)
+            for(k2 in colnames(design_mat[[i]])[
+              c(grep(pattern = paste0("(",k,")"),colnames(design_mat[[i]])), # smooths ~ s()
+                which(colnames(design_mat[[i]])==k))] # linear terms ~ "k"
+            ){
+              # ## SLOW! Construct this data matrix (design mat for dynamic) once outside of this function and look-up
+              # design_mat[[i]][,k2] <- approx(x=modelling_table[[k]],
+              #                                y=gam_prefits[[i]]$X[,k2],
+              #                                xout = rep(X[[k]][j],length(R)))$y
+              
+              design_mat[[i]][,k2] <- rep(design_dyn_mat[[i]][j,k2],length(R))
+              
+            }
+            
           }
+          
+          
+          
           
           params[[i]] <-  matrix(design_mat[[i]] %*% gac_coef[
             sum(n_gac_coef[0:(i-1)])+1:n_gac_coef[i]],
@@ -243,12 +296,6 @@ gac <- function(R,
   # Perform optimisation...
   Fit1 <- optim(par = gac_coef_init,
                 fn = internal_gac_obj,
-                # design_mat = design_mat,
-                # R = R,
-                # Emp_Cov = Emp_Cov,
-                # cov_func = cov_func,
-                # loss = loss,
-                #
                 method = "BFGS"
                 # method = "Nelder-Mead",hessian = F
   )
