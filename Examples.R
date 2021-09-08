@@ -53,7 +53,7 @@ vs_sample_quick <- function (y, dat, w = NULL, p = 0.5) {
 
 ## Entropy Score
 cov_entropy <- function(R_true,R_est){
-  RR <- solve(R_true)%*%R_est
+  RR <- solve(R_true) %*% R_est
   sum(RR[diag(ncol(RR))]) - log(det(RR)) - ncol(RR)
 }
 
@@ -271,7 +271,7 @@ for(cov_i in 1:length(cov_mats$Name)){
     scores[index==i & Name==cov_mats$Name[[cov_i]], entropy := 
              cov_entropy(R_true = PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1)),
                          R_est = cov_temp)]
-           
+    
   }
 }
 rm(cov_temp)
@@ -283,10 +283,13 @@ print(setorder(scores[,mean(ls),by="Name"],V1))
 print(setorder(scores[,mean(entropy),by="Name"],V1))
 
 
-
-
-
-
+print(xtable(scores[,.(`Energy`=mean(es),
+                       `Log`=mean(ls),
+                       `VS-0.5`=mean(vs_0_5),
+                       `VS-1`=mean(vs_1),
+                       Entropy = round(mean(entropy),3)),
+                    by="Name"][order(-Log),],digits = 3),
+      include.rownames=F)
 
 
 
@@ -302,12 +305,16 @@ print(setorder(scores[,mean(entropy),by="Name"],V1))
 
 r <- seq(0,1,length.out=24)
 R <- as.matrix(dist(r))
-Z <- r %*% t(r) # NB: Cov is no longer a function of separation only... 
+
+# Z <- r %*% t(r) # NB: Cov is no longer a function of separation only... 
+# Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=1,theta=2+1/(.1+sqrt(Z)),gamm=1)))$mat)
+
+N <- length(r)
+Z <- matrix(rep(1:N,N) + rep(1:N,each=N) - 1, N, N)/(2*N-1)
+Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=1,theta=1+1/Z,gamm=1)))$mat)
+
 
 image(t(Z))
-
-# True Covariance (consider some addition structure not captured by model --- introdcue some mis-sepecification?)
-Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=1,theta=2+1/(.1+sqrt(Z)),gamm=1)))$mat)
 image(t(Cov_R))
 
 # Empirical from simulation
@@ -337,22 +344,6 @@ test_static_fit <- gac(R = R,
                                          ~1),
                        loss="LS")
 test_static_fit$gac_coef
-
-## --- Test version using sample data
-test_static_fit_data <- gac(R = R,
-                            X = list(x1=Z),
-                            Emp_Cov = NULL,
-                            data=data_sim,
-                            cov_func = PowExp,
-                            param_eqns = list(~1,
-                                              ~1,
-                                              ~1),
-                            loss="LS")
-test_static_fit_data$gac_coef
-image(t(test_static_fit_data$Cov_Est))
-## --- ##
-
-
 
 test_fit <- gac(R = R,
                 X = list(x1=Z),
@@ -385,7 +376,7 @@ image(test_fit$Cov_Est-nearPD(test_fit$Cov_Est)$mat)
 # Realisations
 actuals <- mvnfast::rmvn(n = 1000,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
 
-cov_mats <- list(Name=c("True","Empirical","Static","GAC"),
+cov_mats <- list(Name=c("True","Empirical","Constant","GAC"),
                  mat=list(Cov_R,
                           nearPD(Cov_R_sim)$mat,
                           nearPD(test_static_fit$Cov_Est)$mat,
@@ -408,6 +399,10 @@ for(cov_i in 1:length(cov_mats$Name)){
     # log score
     scores[index==i & Name==cov_mats$Name[[cov_i]], ls := -log(mvnfast::dmvn(X = actuals[i,],mu = rep(0,ncol(actuals)),sigma = cov_mats$mat[[cov_i]]))]
     
+    # Entropy
+    scores[index==i & Name==cov_mats$Name[[cov_i]], entropy := 
+             cov_entropy(R_true = Cov_R,R_est = cov_mats$mat[[cov_i]])]
+    
   }
 }
 
@@ -416,6 +411,17 @@ print(setorder(scores[,mean(es),by="Name"],V1))
 print(setorder(scores[,mean(vs_0_5),by="Name"],V1))
 print(setorder(scores[,mean(vs_1),by="Name"],V1))
 print(setorder(scores[,mean(ls),by="Name"],V1))
+
+
+print(xtable(scores[,.(`Energy`=mean(es),
+                       `Log`=mean(ls),
+                       `VS-0.5`=mean(vs_0_5),
+                       `VS-1`=mean(vs_1),
+                       Entropy = round(mean(entropy),3)),
+                    by="Name"][order(-Log),],digits = 3),
+      include.rownames=F)
+
+
 
 
 
