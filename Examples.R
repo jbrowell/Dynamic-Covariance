@@ -279,7 +279,7 @@ print(xtable(scores[,.(`Energy`=mean(es),
                        `Log`=mean(ls),
                        `VS-0.5`=mean(vs_0_5),
                        `VS-1`=mean(vs_1),
-                       Entropy = round(mean(entropy),3)),
+                       Entropy = mean(entropy)),
                     by="Name"][order(-Log),],digits = 3,
              caption = c("Results of simulation experiment for example \\ref{sec:iso_dyn_cov}: Isotropic dynamic covariance."),
              label = c("tab:iso_dyn_cov")),
@@ -417,7 +417,7 @@ print(xtable(scores[,.(`Energy`=mean(es),
                        `Log`=mean(ls),
                        `VS-0.5`=mean(vs_0_5),
                        `VS-1`=mean(vs_1),
-                       Entropy = round(mean(entropy),3)),
+                       Entropy = mean(entropy)),
                     by="Name"][order(-Log),],digits = 3,
              caption = c("Results of simulation experiment for example \\ref{sec:aniso_cov}: Isotropic dynamic covariance."),
              label = c("tab:aniso_cov")),
@@ -473,14 +473,15 @@ setorder(gobs,issueTime)
 gobs[,1:10]
 
 
-WindScot_Cov <- cor(gobs[hour(issueTime)==12,][,-c(1,2)],use = "pairwise.complete.obs")
-WindScot_Cov <- cor(gobs[hour(issueTime)==0,][,-c(1,2)],use = "pairwise.complete.obs")
+# WindScot_Cor <- cov(gobs[hour(issueTime)==12 & kfold!="Test",][,-c(1,2)],use = "pairwise.complete.obs")
+WindScot_Cov <- cov(gobs[hour(issueTime)==0 & kfold!="Test",][,-c(1,2)],use = "pairwise.complete.obs")
+WindScot_K <- diag(sqrt(1/diag(WindScot_Cov)))
+WindScot_K_inv <- solve(WindScot_K)
+WindScot_Cor <- K %*% WindScot_Cov %*% K
+diag(WindScot_Cor) <- 1
+
 
 col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
-lattice::levelplot(WindScot_Cov,,xlab = "lead time [hours]",ylab = "lead time [hours]",
-                   col.regions=col6(600), cuts=100, at=seq(-.1,1,0.01),
-                   scales=list(x=list(at = seq(1,97,12),lab=seq(0,96,12)/2,rot=45),
-                               y=list(at = seq(1,97,12),lab=seq(0,96,12)/2,rot=45),tck=0.3,cex=0.75))
 
 r <- seq(0,48,by=0.5)
 R <- as.matrix(dist(r))
@@ -488,8 +489,8 @@ R <- as.matrix(dist(r))
 
 # surf3D(matrix(r,length(r),length(r),byrow = F),
 #        matrix(r,length(r),length(r),byrow = T),
-#        WindScot_Cov,
-#        colvar = WindScot_Cov, colkey = F, facets = F,bty="f",
+#        WindScot_Cor,
+#        colvar = WindScot_Cor, colkey = F, facets = F,bty="f",
 #        xlab="Lead-time",ylab="Lead-time",zlab="Covariance",
 #        zlim=c(0,1),theta = -10,phi = 10)
 # plotrgl()
@@ -503,17 +504,13 @@ PowExp_cor <- function(params,...){
 ## Static fit
 WindScot_static_fit <- gac(R = R,
                            X = list(),
-                           Emp_Cov = WindScot_Cov,
+                           Emp_Cov = WindScot_Cor,
                            cov_func = PowExp_cor,
                            param_eqns = list(#~1,
                              ~1,
                              ~1),
                            loss="WLS")
 
-
-lattice::levelplot(WindScot_static_fit$Cov_Est,xlab="node id", ylab="node id",
-                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
-                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
 
 
 ## GAC fit
@@ -523,47 +520,71 @@ N <- length(r)
 Z <- matrix(rep(1:N,N) + rep(1:N,each=N) - 1, N, N)/(2*N-1)
 
 N <- matrix(rep(r,each=length(r)),length(r),length(r))
-Z1 = cos(2*pi*N/12) + cos(2*pi*t(N)/12)
-# image(Z1)
 
 WindScot_gac_fit <- gac(R = R,
-                        X = list(x1=Z,
-                                 x2=Z1),
-                        Emp_Cov = WindScot_Cov,
+                        X = list(x1=Z),
+                        Emp_Cov = WindScot_Cor,
                         cov_func = PowExp_cor,
-                        param_eqns = list(#~1,
-                          ~s(x1,bs="bs",k=20),
-                          # ~s(x1,bs="bs",k=20)+x2,
-                          # ~s(x2,k=10),
-                          ~1),
+                        param_eqns = list(~s(x1,bs="bs",k=20),
+                                          ~1),
                         loss="WLS",smoothness_param = 0)
 
 
-lattice::levelplot(WindScot_gac_fit$Cov_Est,xlab="node id", ylab="node id",
-                   col.regions=col6(600), cuts=100, at=seq(0,1,0.01),
-                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+
+## Plots
+wind_cor_plot <- function(data,filename=NULL,...){
+  h <- lattice::levelplot(data,
+                          xlab = list(label="Lead-time [hours]",cex=1.2),
+                          ylab = list(label="Lead-time [hours]",cex=1.2),
+                          col.regions=col6(600), cuts=100, at=seq(-.1,1,0.01),
+                          scales=list(x=list(at = seq(1,97,12),lab=seq(0,96,12)/2,rot=45),
+                                      y=list(at = seq(1,97,12),lab=seq(0,96,12)/2,rot=45),tck=0.3,cex=1.2),
+                          ...)
+  if(!is.null(filename)){
+    setEPS(); postscript(filename)
+    print(h)
+    dev.off()
+  }
+  
+  print(h)
+  
+}
+
+lattice::lattice.options(
+  layout.heights=list(bottom.padding=list(x=1), top.padding=list(x=-1)),
+  layout.widths=list(left.padding=list(x=-0.5), right.padding=list(x=-1))
+)
+
+
+wind_cor_plot(WindScot_Cor,colorkey=F,filename = "PSCC22_plots/Wind_Emp.eps")
+
+wind_cor_plot(WindScot_static_fit$Cov_Est,colorkey=F,filename = "PSCC22_plots/Wind_Const.eps")
+              # colorkey = list(space = "bottom",width=0.8,labels=list(cex=1.2)))
+
+wind_cor_plot(WindScot_gac_fit$Cov_Est,colorkey=F,filename = "PSCC22_plots/Wind_gac.eps")
 
 
 
 
-modelling_table <- data.frame(y=c(WindScot_Cov),
+
+
+
+modelling_table <- data.frame(y=c(WindScot_Cor),
                               r=c(R),
-                              x1=c(Z))
+                              x1=c(Z),
+                              y_est_static=c(WindScot_static_fit$Cov_Est),
+                              y_est_gac=c(WindScot_gac_fit$Cov_Est))
 
 plot(x=modelling_table$r,
      y=modelling_table$y,
      col="grey",pch=".")
 
-
-modelling_table$y_est <- c(WindScot_static_fit$Cov_Est)
 points(x=modelling_table$r,
-       y=modelling_table$y_est,
+       y=modelling_table$y_est_static,
        col="red")
 
-
-modelling_table$y_est <- c(WindScot_gac_fit$Cov_Est)
 points(x=modelling_table$r,
-       y=modelling_table$y_est,
+       y=modelling_table$y_est_gac,
        col="blue")
 
 
@@ -603,43 +624,91 @@ plot3 <- plotly::plot_ly(x=modelling_table$r,
 
 plot <- plotly::subplot(plot1,plot2,plot3,nrows = 1)
 plotly::layout(plot, scene = list(xaxis = list(title = 'dt [hours]'), yaxis = list(title = 'dist along diag [-]'), zaxis = list(title = 'covariance [-]')))
-
 invisible(gc())
 
 
+# ## Additive 2D-fourier term
+# PowExp_cor_spec <- function(params,...){
+#   PowExp(params = list(sigma=1,theta=params[[1]],gamma=params[[2]]),...) + params[[3]]*(2+Z1)
+# }
+# 
+# WindScot_gac_fit2 <- gac(R = R,
+#                          X = list(x1=c(Z),
+#                                   x2=c(Z1)),
+#                          Emp_Cov = WindScot_Cor,
+#                          cov_func = PowExp_cor_spec,
+#                          param_eqns = list(#~1,
+#                            ~s(x1,bs="bs",k=20),
+#                            ~1,
+#                            ~1),
+#                          loss="WLS")
+# 
+# lattice::levelplot(WindScot_gac_fit2$Cov_Est,xlab="node id", ylab="node id",
+#                    col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
+#                    scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+
+
+## Evaluation
 
 
 
+actuals <- as.matrix(na.omit(gobs[hour(issueTime)==0 & kfold=="Test",][,-c(1,2)]))
 
+cov_mats <- list(Name=c("Empirical","Constant","GAC"),
+                 mat=list(WindScot_K_inv %*% WindScot_Cor %*% WindScot_K_inv,
+                          WindScot_K_inv %*% WindScot_static_fit$Cov_Est %*% WindScot_K_inv,
+                          WindScot_K_inv %*% WindScot_gac_fit$Cov_Est %*% WindScot_K_inv))
 
+scores <- data.table(index=rep(1:nrow(actuals),length(cov_mats$Name)),
+                     Name=rep(cov_mats$Name,each=nrow(actuals)))
+# es=NULL,vs=NULL,`Log Score`=NULL)
 
-
-
-
-
-
-
-
-
-## Additive 2D-fourier term
-PowExp_cor_spec <- function(params,...){
-  PowExp(params = list(sigma=1,theta=params[[1]],gamma=params[[2]]),...) + params[[3]]*(2+Z1)
+for(cov_i in 1:length(cov_mats$Name)){
+  
+  cov_mats$mat[[cov_i]] <- nearPD(cov_mats$mat[[cov_i]])$mat
+  
+  for(i in 1:nrow(actuals)){
+    
+    # Draw sample trajectories
+    traj <- mvnfast::rmvn(n = 1000,mu=rep(0,ncol(cov_mats$mat[[cov_i]])),sigma = cov_mats$mat[[cov_i]])
+    
+    # es and vs
+    scores[index==i & Name==cov_mats$Name[[cov_i]], es := es_sample(y=actuals[i,],dat = t(traj))]
+    scores[index==i & Name==cov_mats$Name[[cov_i]], vs_0_5 := vs_sample_quick(y=actuals[i,],dat = t(traj), p = 0.5)]
+    scores[index==i & Name==cov_mats$Name[[cov_i]], vs_1 := vs_sample_quick(y=actuals[i,],dat = t(traj), p = 1)]
+    
+    # log score
+    scores[index==i & Name==cov_mats$Name[[cov_i]], ls := -log(mvnfast::dmvn(X = actuals[i,],mu = rep(0,ncol(actuals)),sigma = cov_mats$mat[[cov_i]]))]
+    
+  }
 }
 
-WindScot_gac_fit2 <- gac(R = R,
-                         X = list(x1=c(Z),
-                                  x2=c(Z1)),
-                         Emp_Cov = WindScot_Cov,
-                         cov_func = PowExp_cor_spec,
-                         param_eqns = list(#~1,
-                           ~s(x1,bs="bs",k=20),
-                           ~1,
-                           ~1),
-                         loss="WLS")
 
-lattice::levelplot(WindScot_gac_fit2$Cov_Est,xlab="node id", ylab="node id",
-                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
-                   scales=list(x=list(rot=45),y=list(rot=45),tck=0.3,cex=0.1))
+print(setorder(scores[,mean(es),by="Name"],V1))
+print(setorder(scores[,mean(vs_0_5),by="Name"],V1))
+print(setorder(scores[,mean(vs_1),by="Name"],V1))
+print(setorder(scores[,mean(ls),by="Name"],V1))
+
+print(xtable(scores[,.(`Energy`=mean(es),
+                       `Log`=mean(ls),
+                       `VS-0.5`=mean(vs_0_5),
+                       `VS-1`=mean(vs_1)),
+                    by="Name"][order(-Log),],digits = 3,
+             caption = c("Results for temporal wind power forecasting."),
+             label = c("tab:wind_cov")),
+      caption.placement = "top",
+      include.rownames=F)
+
+
+
+# Remove everything apart from functions
+rm(list = setdiff(ls(), lsf.str()))
+
+
+
+
+
+
 
 
 
