@@ -8,6 +8,7 @@ require(mgcv)
 require(Matrix)
 require(scoringRules)
 require(xtable)
+require(boot)
 
 require(roxygen2)
 require(devtools)
@@ -275,15 +276,15 @@ print(setorder(scores[,mean(ls),by="Name"],V1))
 print(setorder(scores[,mean(entropy),by="Name"],V1))
 
 
-print(xtable(scores[,.(`Energy`=mean(es),
-                       `Log`=mean(ls),
-                       `VS-0.5`=mean(vs_0_5),
-                       `VS-1`=mean(vs_1),
-                       Entropy = mean(entropy)),
+print(xtable(scores[,.(`Energy`=signif(mean(es),4),
+                       `Log`=signif(mean(ls),4),
+                       `VS-0.5`=signif(mean(vs_0_5),4),
+                       `VS-1`=signif(mean(vs_1),4),
+                       Entropy = signif(mean(entropy),4)),
                     by="Name"][order(-Log),],digits = 3,
              caption = c("Results of simulation experiment for example \\ref{sec:iso_dyn_cov}: Isotropic dynamic covariance."),
              label = c("tab:iso_dyn_cov")),
-      caption.placement = "top",
+      caption.placement = "top",table.placement="",
       include.rownames=F)
 
 
@@ -413,15 +414,16 @@ print(setorder(scores[,mean(vs_1),by="Name"],V1))
 print(setorder(scores[,mean(ls),by="Name"],V1))
 
 
-print(xtable(scores[,.(`Energy`=mean(es),
-                       `Log`=mean(ls),
-                       `VS-0.5`=mean(vs_0_5),
-                       `VS-1`=mean(vs_1),
-                       Entropy = mean(entropy)),
-                    by="Name"][order(-Log),],digits = 3,
+
+print(xtable(scores[,.(`Energy`=signif(mean(es),4),
+                       `Log`=signif(mean(ls),4),
+                       `VS-0.5`=signif(mean(vs_0_5),4),
+                       `VS-1`=signif(mean(vs_1),4),
+                       Entropy = signif(mean(entropy),4)),
+                    by="Name"][order(-Log),],digits = c(NA,3,2,2,1,3),
              caption = c("Results of simulation experiment for example \\ref{sec:aniso_cov}: Isotropic dynamic covariance."),
              label = c("tab:aniso_cov")),
-      caption.placement = "top",
+      caption.placement = "top",table.placement="",
       include.rownames=F)
 
 
@@ -559,7 +561,7 @@ lattice::lattice.options(
 wind_cor_plot(WindScot_Cor,colorkey=F,filename = "PSCC22_plots/Wind_Emp.eps")
 
 wind_cor_plot(WindScot_static_fit$Cov_Est,colorkey=F,filename = "PSCC22_plots/Wind_Const.eps")
-              # colorkey = list(space = "bottom",width=0.8,labels=list(cex=1.2)))
+# colorkey = list(space = "bottom",width=0.8,labels=list(cex=1.2)))
 
 wind_cor_plot(WindScot_gac_fit$Cov_Est,colorkey=F,filename = "PSCC22_plots/Wind_gac.eps")
 
@@ -689,14 +691,17 @@ print(setorder(scores[,mean(vs_0_5),by="Name"],V1))
 print(setorder(scores[,mean(vs_1),by="Name"],V1))
 print(setorder(scores[,mean(ls),by="Name"],V1))
 
-print(xtable(scores[,.(`Energy`=mean(es),
-                       `Log`=mean(ls),
-                       `VS-0.5`=mean(vs_0_5),
-                       `VS-1`=mean(vs_1)),
-                    by="Name"][order(-Log),],digits = 3,
+
+boot(data = scores[Name=="GAC",ls],statistic = function(data, i){mean(data[i])},R=10000)
+
+print(xtable(scores[,.(`Energy`=signif(mean(es),4),
+                       `Log`=signif(mean(ls),4),
+                       `VS-0.5`=signif(mean(vs_0_5),4),
+                       `VS-1`=signif(mean(vs_1),4)),
+                    by="Name"][order(-Log),],digits = c(NA,0,3,2,0,0),
              caption = c("Results for temporal wind power forecasting."),
              label = c("tab:wind_cov")),
-      caption.placement = "top",
+      caption.placement = "top",table.placement="",
       include.rownames=F)
 
 
