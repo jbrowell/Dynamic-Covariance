@@ -54,17 +54,12 @@ vs_sample_quick <- function (y, dat, w = NULL, p = 0.5) {
 ## Entropy Score
 cov_entropy <- function(R_true,R_est){
   RR <- solve(R_true) %*% R_est
-  sum(RR[diag(ncol(RR))]) - log(det(RR)) - ncol(RR)
+  sum(RR[diag(ncol(RR))==1]) - log(det(RR)) - ncol(RR)
 }
 
 
 
 ## Notes for the future ####
-
-# Try nls()... e.g. formula = cov ~ cov_function(...)
-
-# End goal: estimate and sample mvn. This script focuses on estimating
-# parametric contrivance functions.
 
 # Alternative, estimate (sparse) precision matrix e.g. "glasso" then
 # sample using "sparseMVN::rmvn.sparse()"...
@@ -101,21 +96,11 @@ image(t(Cov_R_sim))
 image(t(Cov_R_sim-Cov_R))
 
 
-# Fit to (static) empirical covariance
+# Evaluate fit to empirical covariance for given parameters (used later to
+# optimise parameters)
 gac_obj(c(1,1,1),R,Cov_R_sim,cov_func=PowExp,loss="WLS")
 
-
-# # Fit to data, sample by sample
-# dim(data_sim)
-# 
-# (t(data_sim) %*% data_sim)/(1+nrow(data_sim))
-# 
-# cov_stream <- matrix(0,ncol(data_sim),ncol(data_sim))
-# for(i in 1:nrow(data_sim)){
-#   cov_stream <- cov_stream + (1/nrow(data_sim))*(data_sim[i,] %*% t(data_sim[i,]))
-# }
-
-
+# Find parameters to minimise gac_obj
 Fit1 <- optim(par=c(1,1,1),
               gac_obj,
               method = "L-BFGS-B",
@@ -124,13 +109,13 @@ Fit1 <- optim(par=c(1,1,1),
               R=R,Emp_Cov = Cov_R_sim,
               cov_func=Spherical)
 
+# Calculate estimated covariance matrix from result of optim
 Cov_R_fit <- PowExp(R,params =  Fit1$par)
 
+# Plot covariance functions (simulated data, true, fit)
 plot(c(R),c(Cov_R_sim),pch=16,col=rgb(0,1,0,alpha = .1))
 points(c(R),c(Cov_R),pch=16)
 points(c(R),c(Cov_R_fit),pch=16,col=2)
-
-
 
 # Remove everything apart from functions
 rm(list = setdiff(ls(), lsf.str()))
@@ -145,12 +130,11 @@ rm(list = setdiff(ls(), lsf.str()))
 r <- seq(0,1,length.out=6)
 R <- as.matrix(dist(r))
 
-N <- 2000
+N <- 5000
 x <- runif(N)
 # theta_fn <- function(x){x^2+1}
 # theta_fn <- function(x){1/(1+exp(-10*(x-0.5)))+0.5}
 theta_fn <- function(x){sin(2*pi*x)+2}
-hist(theta_fn(x))
 
 # True Cov
 image(t(PowExp(R,params = list(sigma=1,theta=min(theta_fn(x)),gamm=1))))
@@ -193,14 +177,14 @@ iso_ex_smooth_fit <- gac(R = R,
                          Emp_Cov = NULL,
                          data = Z,
                          cov_func = PowExp_1param,
-                         param_eqns = list(~s(x1,bs="cr",k=7)),
+                         param_eqns = list(~s(x1,bs="cr",k=5)),
                          loss="WLS",smoothness_param = 0)
 
-# Plot Basis
+# Plot Basis Functions
 matplot(x=iso_ex_smooth_fit$modelling_table$x1,
         y=iso_ex_smooth_fit$gam_prefits[[1]]$X,type="l")
 
-# Plot Fit
+# Plot Smooth Fit
 matplot(x=iso_ex_smooth_fit$modelling_table$x1,
         y=iso_ex_smooth_fit$gam_prefits[[1]]$X * 
           matrix(rep(iso_ex_smooth_fit$gac_coef[[1]],each=nrow(iso_ex_smooth_fit$gam_prefits[[1]]$X)),
@@ -217,6 +201,12 @@ lines(iso_ex_linear_fit$modelling_table$x1,
 lines(iso_ex_smooth_fit$modelling_table$x1,
       iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],col=3)
 
+
+## Predict function for fits
+theta_fn_linear_pred <- approxfun(x = iso_ex_linear_fit$modelling_table$x1,
+                                  y = iso_ex_linear_fit$gam_prefits[[1]]$X %*% iso_ex_linear_fit$gac_coef[[1]],
+                                  rule = 2)
+
 theta_fn_smooth_pred <- approxfun(x = iso_ex_smooth_fit$modelling_table$x1,
                                   y = iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],
                                   rule = 2)
@@ -226,7 +216,7 @@ theta_fn_smooth_pred <- approxfun(x = iso_ex_smooth_fit$modelling_table$x1,
 
 
 # Realisations
-N_oos <- 1000
+N_oos <- 5000
 x_oos <- runif(N_oos)
 
 # Empirical from simulation
@@ -236,7 +226,7 @@ for(i in 1:N_oos){
                              mu=rep(0,ncol(R)),sigma = PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1)))
 }
 
-cov_mats <- list(Name=c("True","Static Empirical","GAC"))
+cov_mats <- list(Name=c("True","Static Empirical","GAC-Linear","GAC-CR"))
 scores <- data.table(index=rep(1:nrow(Z_oos),length(cov_mats$Name)),
                      Name=rep(cov_mats$Name,each=nrow(Z_oos)))
 # es=NULL,vs=NULL,`Log Score`=NULL)
@@ -248,7 +238,9 @@ for(cov_i in 1:length(cov_mats$Name)){
       cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1))  
     }else if(cov_mats$Name[cov_i]=="Static Empirical"){
       cov_temp <- cov(Z)
-    }else if(cov_mats$Name[cov_i]=="GAC"){
+    }else if(cov_mats$Name[cov_i]=="GAC-Linear"){
+      cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn_linear_pred(x_oos[i]),gamma=1))  
+    }else if(cov_mats$Name[cov_i]=="GAC-CR"){
       cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn_smooth_pred(x_oos[i]),gamma=1))  
     }else{
       stop("cov_i not recognised.")
@@ -288,11 +280,19 @@ print(xtable(scores[,.(`Energy`=mean(es),
                        `VS-0.5`=mean(vs_0_5),
                        `VS-1`=mean(vs_1),
                        Entropy = round(mean(entropy),3)),
-                    by="Name"][order(-Log),],digits = 3),
+                    by="Name"][order(-Log),],digits = 3,
+             caption = c("Results of simulation experiment for example \\ref{sec:iso_dyn_cov}: Isotropic dynamic covariance."),
+             label = c("tab:iso_dyn_cov")),
+      caption.placement = "top",
       include.rownames=F)
 
 
 
+
+
+
+# Remove everything apart from functions
+rm(list = setdiff(ls(), lsf.str()))
 
 
 
@@ -418,9 +418,16 @@ print(xtable(scores[,.(`Energy`=mean(es),
                        `VS-0.5`=mean(vs_0_5),
                        `VS-1`=mean(vs_1),
                        Entropy = round(mean(entropy),3)),
-                    by="Name"][order(-Log),],digits = 3),
+                    by="Name"][order(-Log),],digits = 3,
+             caption = c("Results of simulation experiment for example \\ref{sec:aniso_cov}: Isotropic dynamic covariance."),
+             label = c("tab:aniso_cov")),
+      caption.placement = "top",
       include.rownames=F)
 
+
+
+# Remove everything apart from functions
+rm(list = setdiff(ls(), lsf.str()))
 
 
 
