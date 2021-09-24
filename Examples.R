@@ -304,22 +304,22 @@ rm(list = setdiff(ls(), lsf.str()))
 ## Anisotropic Example ####
 
 
-r <- seq(0,1,length.out=24)
+r <- seq(0,1,length.out=51)
 R <- as.matrix(dist(r))
 
 # Z <- r %*% t(r) # NB: Cov is no longer a function of separation only... 
 # Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=1,theta=2+1/(.1+sqrt(Z)),gamm=1)))$mat)
 
 N <- length(r)
-Z <- matrix(rep(1:N,N) + rep(1:N,each=N) - 1, N, N)/(2*N-1)
-Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=1,theta=1+1/Z,gamm=1)))$mat)
+Z <- matrix(rep(r,N) + rep(r,each=N), N, N) +1
+Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=1,theta=1/(Z),gamm=0.8)))$mat)
 
 
 image(t(Z))
 image(t(Cov_R))
 
 # Empirical from simulation
-data_sim <- mvnfast::rmvn(n = 720,
+data_sim <- mvnfast::rmvn(n = 1000,
                           mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
 Cov_R_sim <- cov(data_sim)
 image(t(Cov_R_sim))
@@ -436,7 +436,7 @@ rm(list = setdiff(ls(), lsf.str()))
 
 
 
-## Wind and SOlar ####
+## Wind and Solar ####
 ## Notes on data from Ciaran:
 
 # Large RDAs of data, and RMD to load
@@ -460,7 +460,7 @@ WindSolar_Cov <- cor(gobs[,-c(1,2)],use = "pairwise.complete.obs")
 
 col6 <- colorRampPalette(c("blue","cyan","yellow","red"))
 lattice::levelplot(WindSolar_Cov,xlab="node id", ylab="node id",
-                   col.regions=col6(600), cuts=100, at=seq(-0,1,0.01),
+                   col.regions=col6(600), cuts=100, at=seq(-0.1,1,0.01),
                    scales=list(x=list(at = seq(0,48,12),rot=45),y=list(rot=45),tck=0.3,cex=0.1))
 
 
@@ -479,7 +479,7 @@ gobs[,1:10]
 WindScot_Cov <- cov(gobs[hour(issueTime)==0 & kfold!="Test",][,-c(1,2)],use = "pairwise.complete.obs")
 WindScot_K <- diag(sqrt(1/diag(WindScot_Cov)))
 WindScot_K_inv <- solve(WindScot_K)
-WindScot_Cor <- K %*% WindScot_Cov %*% K
+WindScot_Cor <- WindScot_K %*% WindScot_Cov %*% WindScot_K
 diag(WindScot_Cor) <- 1
 
 
@@ -672,7 +672,7 @@ for(cov_i in 1:length(cov_mats$Name)){
   for(i in 1:nrow(actuals)){
     
     # Draw sample trajectories
-    traj <- mvnfast::rmvn(n = 1000,mu=rep(0,ncol(cov_mats$mat[[cov_i]])),sigma = cov_mats$mat[[cov_i]])
+    traj <- mvnfast::rmvn(n = 2500,mu=rep(0,ncol(cov_mats$mat[[cov_i]])),sigma = cov_mats$mat[[cov_i]])
     
     # es and vs
     scores[index==i & Name==cov_mats$Name[[cov_i]], es := es_sample(y=actuals[i,],dat = t(traj))]
@@ -692,7 +692,6 @@ print(setorder(scores[,mean(vs_1),by="Name"],V1))
 print(setorder(scores[,mean(ls),by="Name"],V1))
 
 
-boot(data = scores[Name=="GAC",ls],statistic = function(data, i){mean(data[i])},R=10000)
 
 print(xtable(scores[,.(`Energy`=signif(mean(es),4),
                        `Log`=signif(mean(ls),4),
@@ -703,6 +702,45 @@ print(xtable(scores[,.(`Energy`=signif(mean(es),4),
              label = c("tab:wind_cov")),
       caption.placement = "top",table.placement="",
       include.rownames=F)
+
+
+
+## Bootstrap single score
+boot(data = scores[Name=="GAC",ls],statistic = function(data, i){mean(data[i])},R=10000)
+
+
+## Bootstrap skill score
+scores_boot <- data.table()
+ref <- "Empirical"
+for(m in scores[Name!=ref,unique(Name)]){
+  for(s in names(scores)[-c(1:2)]){
+    
+    boot_data <- boot(data = cbind(scores[Name==m,get(s)],scores[Name==ref,get(s)]),
+                      statistic = function(data, i){
+                        100-100*mean(data[i,1])/mean(data[i,2])
+                      },
+                      R=1000)
+    
+    if(sd(boot_data$t)==0 | is.na(sd(boot_data$t))){
+      ci <- data.frame(normal=rep(NA,3))
+    }else{
+      ci <- boot.ci(boot_data)
+    }
+    
+    scores_boot <- rbind(scores_boot,
+                         data.table(Name=m,Score=s,
+                                    Mean=mean(boot_data$t),SD=sd(boot_data$t),
+                                    ci_L=ci$normal[2],ci_R=ci$normal[3]))
+    
+  }
+}; rm(boot_data,ci,s,m) 
+
+scores_boot
+
+
+
+
+
 
 
 
