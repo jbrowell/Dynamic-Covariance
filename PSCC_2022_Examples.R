@@ -9,6 +9,9 @@ require(Matrix)
 require(scoringRules)
 require(xtable)
 require(boot)
+require(progress)
+
+
 
 require(roxygen2)
 require(devtools)
@@ -59,20 +62,17 @@ cov_entropy <- function(R_true,R_est){
 }
 
 
-
-## Notes for the future ####
-
-# Alternative, estimate (sparse) precision matrix e.g. "glasso" then
-# sample using "sparseMVN::rmvn.sparse()"...
-
-
 ## Form single-variate symmetric matrix, sample and fit  ####
 
+# This example is not included in the paper but outlines the procedure used
+# in the "gac()" function.
+
+## Define data generating process
 r <- seq(0,3,by=0.1)
 R <- as.matrix(dist(r))
 Cov_R <- PowExp(R,params = c(sqrt(2),1.5,0.8))
-# Cov_R <- Spherical(R)
 
+## Visualise
 image(t(Cov_R))
 surf3D(matrix(r,length(r),length(r),byrow = F),
        matrix(r,length(r),length(r),byrow = T),
@@ -82,14 +82,8 @@ surf3D(matrix(r,length(r),length(r),byrow = F),
        zlim=c(0,2),theta = -10,phi = 10)
 # plotrgl()
 
-## Visualisations
-# r <- seq(0,3,by=0.01)
-# plot(r,PowExp(r),type="l",ylim = c(0,1.1))
-# lines(r,Whittle_Matern(r),col=2)
-# lines(r,Cauchy(r),col=3)
-# lines(r,Spherical(r,theta = 2),col=4)
 
-## Sample
+## Sample training data from N(0,Cov_R) 
 
 data_sim <- mvnfast::rmvn(n = 2^11,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
 Cov_R_sim <- cov(data_sim)
@@ -97,11 +91,10 @@ image(t(Cov_R_sim))
 image(t(Cov_R_sim-Cov_R))
 
 
-# Evaluate fit to empirical covariance for given parameters (used later to
-# optimise parameters)
+## Single evaluation of objective function for model fit
 gac_obj(c(1,1,1),R,Cov_R_sim,cov_func=PowExp,loss="WLS")
 
-# Find parameters to minimise gac_obj
+## Find parameters to minimise gac_obj
 Fit1 <- optim(par=c(1,1,1),
               gac_obj,
               method = "L-BFGS-B",
@@ -110,13 +103,14 @@ Fit1 <- optim(par=c(1,1,1),
               R=R,Emp_Cov = Cov_R_sim,
               cov_func=Spherical)
 
-# Calculate estimated covariance matrix from result of optim
+## Calculate estimated covariance matrix from result of optim
 Cov_R_fit <- PowExp(R,params =  Fit1$par)
 
-# Plot covariance functions (simulated data, true, fit)
+## Plot covariance functions (simulated data, true, fit)
 plot(c(R),c(Cov_R_sim),pch=16,col=rgb(0,1,0,alpha = .1))
 points(c(R),c(Cov_R),pch=16)
 points(c(R),c(Cov_R_fit),pch=16,col=2)
+legend("top",c("Data","Truth","Fit"),pch=16,col=c(rgb(0,1,0),1,2))
 
 # Remove everything apart from functions
 rm(list = setdiff(ls(), lsf.str()))
@@ -137,11 +131,11 @@ x <- runif(N)
 # theta_fn <- function(x){1/(1+exp(-10*(x-0.5)))+0.5}
 theta_fn <- function(x){sin(2*pi*x)+2}
 
-# True Cov
+## True Cov
 image(t(PowExp(R,params = list(sigma=1,theta=min(theta_fn(x)),gamm=1))))
 image(t(PowExp(R,params = list(sigma=1,theta=max(theta_fn(x)),gamm=1))))
 
-# Empirical from simulation
+## Empirical cov from simulation
 Z <- matrix(NA,N,ncol(R))
 for(i in 1:N){
   Z[i,] <- mvnfast::rmvn(n = 1,
@@ -149,13 +143,13 @@ for(i in 1:N){
 }
 
 image(t(cov(Z)))
-
 image(t(cov(Z[x<0.5,])))
 image(t(cov(Z[x>0.5,])))
 
-
+## Define covairance function (only single gac model to estimate)
 PowExp_1param <- function(params,...){PowExp(params = list(sigma=1,theta=params[[1]],gamma=1),...)}
 
+## Static model (constant theta)
 iso_ex_static_fit <- gac(R = R,
                          Emp_Cov = cov(Z),
                          cov_func = PowExp_1param,
@@ -163,7 +157,7 @@ iso_ex_static_fit <- gac(R = R,
                          loss="WLS")
 iso_ex_static_fit$gac_coef
 
-
+## Simple linear fit for theta
 iso_ex_linear_fit <- gac(R = R,
                          X = list(x1=x),
                          Emp_Cov = NULL,
@@ -172,14 +166,120 @@ iso_ex_linear_fit <- gac(R = R,
                          param_eqns = list(~x1),
                          loss="WLS")
 
-
+## GAC fit for theta
 iso_ex_smooth_fit <- gac(R = R,
                          X = list(x1=x),
                          Emp_Cov = NULL,
                          data = Z,
                          cov_func = PowExp_1param,
                          param_eqns = list(~s(x1,bs="cr",k=5)),
-                         loss="WLS",smoothness_param = 0)
+                         loss="WLS",smoothness_param = 5e-5)
+
+
+
+## Predict function for fits
+theta_fn_linear_pred <- approxfun(x = iso_ex_linear_fit$modelling_table$x1,
+                                  y = iso_ex_linear_fit$gam_prefits[[1]]$X %*% iso_ex_linear_fit$gac_coef[[1]],
+                                  rule = 2)
+
+theta_fn_smooth_pred <- approxfun(x = iso_ex_smooth_fit$modelling_table$x1,
+                                  y = iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],
+                                  rule = 2)
+
+
+## Evaluation of fits
+
+
+## Realisations
+N_oos <- N
+x_oos <- runif(N_oos)
+
+# Empirical from simulation
+Z_oos <- matrix(NA,N_oos,ncol(R))
+for(i in 1:N_oos){
+  Z_oos[i,] <- mvnfast::rmvn(n = 1,
+                             mu=rep(0,ncol(R)),sigma = PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1)))
+}
+
+cov_mats <- list(Name=c("True","Static Empirical","GAC-Linear","GAC-CR"))
+scores <- data.table(index=rep(1:nrow(Z_oos),length(cov_mats$Name)),
+                     Name=rep(cov_mats$Name,each=nrow(Z_oos)))
+# es=NULL,vs=NULL,`Log Score`=NULL)
+
+for(cov_i in 1:length(cov_mats$Name)){
+  
+  print(cov_mats$Name[cov_i])
+  pb <- progress_bar$new(total = nrow(Z_oos))
+  
+  for(i in 1:nrow(Z_oos)){
+    
+    pb$tick()
+    
+    if(cov_mats$Name[cov_i]=="True"){
+      cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1))  
+    }else if(cov_mats$Name[cov_i]=="Static Empirical"){
+      cov_temp <- cov(Z)
+    }else if(cov_mats$Name[cov_i]=="GAC-Linear"){
+      cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn_linear_pred(x_oos[i]),gamma=1))  
+    }else if(cov_mats$Name[cov_i]=="GAC-CR"){
+      cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn_smooth_pred(x_oos[i]),gamma=1))  
+    }else{
+      stop("cov_i not recognised.")
+    }
+    
+    ## Quick scores to calculate
+    
+    # log score
+    scores[index==i & Name==cov_mats$Name[[cov_i]], ls := -log(mvnfast::dmvn(X = Z_oos[i,],mu = rep(0,ncol(R)),sigma = cov_temp))]
+    
+    # Entropy
+    scores[index==i & Name==cov_mats$Name[[cov_i]], entropy := 
+             cov_entropy(R_true = PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1)),
+                         R_est = cov_temp)]
+    
+    ## Slow scores to calculate (comment out to save time...)
+    
+    # Draw sample trajectories
+    traj <- mvnfast::rmvn(n = 1000,
+                          mu=rep(0,ncol(R)),sigma = cov_temp)
+
+    # es and vs
+    scores[index==i & Name==cov_mats$Name[[cov_i]], es := es_sample(y=Z_oos[i,],dat = t(traj))]
+    scores[index==i & Name==cov_mats$Name[[cov_i]], vs_0_5 := vs_sample_quick(y=Z_oos[i,],dat = t(traj), p = 0.5)]
+    scores[index==i & Name==cov_mats$Name[[cov_i]], vs_1 := vs_sample_quick(y=Z_oos[i,],dat = t(traj), p = 1)]
+    
+    
+    
+  }
+}
+rm(cov_temp)
+
+
+
+## Save/load results used in paper
+# save.image(file="PSCC22_plots/iso_example.Rda")
+# load("PSCC22_plots/iso_example.Rda")
+##
+
+print(setorder(scores[,mean(es),by="Name"],V1))
+print(setorder(scores[,mean(vs_0_5),by="Name"],V1))
+print(setorder(scores[,mean(vs_1),by="Name"],V1))
+print(setorder(scores[,mean(ls),by="Name"],V1))
+print(setorder(scores[,mean(entropy),by="Name"],V1))
+
+
+print(xtable(scores[,.(`Energy`=signif(mean(es),4),
+                       `Log`=signif(mean(ls),4),
+                       `VS-0.5`=signif(mean(vs_0_5),4),
+                       `VS-1`=signif(mean(vs_1),4),
+                       KL = signif(mean(entropy),4)),
+                    by="Name"][order(-Log),],digits = 3,
+             caption = c("Results of simulation experiment for example \\ref{sec:iso_dyn_cov}: Isotropic dynamic covariance."),
+             label = c("tab:iso_dyn_cov")),
+      caption.placement = "top",table.placement="",
+      include.rownames=F)
+
+
 
 # Plot Basis Functions
 matplot(x=iso_ex_smooth_fit$modelling_table$x1,
@@ -196,96 +296,20 @@ lines(iso_ex_smooth_fit$modelling_table$x1,
 
 
 ## Plot different estimates of theta_fn:
-plot(x[order(x)],theta_fn(x)[order(x)],type="l",ylim=c(1,3))
+require(latex2exp)
+setEPS(); postscript("PSCC22_plots/iso_theta_fits.eps",width = 6,height = 5)
+
+plot(x[order(x)],theta_fn(x)[order(x)],type="l", lwd=2,
+     ylim=c(1,4),axes=F,
+     xlab=TeX("$x_t$"),ylab=TeX("$\\hat{\\theta}$"))
+axis(1);axis(2); grid()
 lines(iso_ex_linear_fit$modelling_table$x1,
-      iso_ex_linear_fit$gam_prefits[[1]]$X %*% iso_ex_linear_fit$gac_coef[[1]],col=2)
+      iso_ex_linear_fit$gam_prefits[[1]]$X %*% iso_ex_linear_fit$gac_coef[[1]],col=2,lty=2,lwd=2)
 lines(iso_ex_smooth_fit$modelling_table$x1,
-      iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],col=3)
+      iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],col=3,lty=3,lwd=2)
+legend("top",c("True","GAC-Linear","GAC-CR"),col=1:3,lty=1:3,lwd=2)
 
-
-## Predict function for fits
-theta_fn_linear_pred <- approxfun(x = iso_ex_linear_fit$modelling_table$x1,
-                                  y = iso_ex_linear_fit$gam_prefits[[1]]$X %*% iso_ex_linear_fit$gac_coef[[1]],
-                                  rule = 2)
-
-theta_fn_smooth_pred <- approxfun(x = iso_ex_smooth_fit$modelling_table$x1,
-                                  y = iso_ex_smooth_fit$gam_prefits[[1]]$X %*% iso_ex_smooth_fit$gac_coef[[1]],
-                                  rule = 2)
-
-
-## Evaluation of fits
-
-
-# Realisations
-N_oos <- 5000
-x_oos <- runif(N_oos)
-
-# Empirical from simulation
-Z_oos <- matrix(NA,N_oos,ncol(R))
-for(i in 1:N_oos){
-  Z_oos[i,] <- mvnfast::rmvn(n = 1,
-                             mu=rep(0,ncol(R)),sigma = PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1)))
-}
-
-cov_mats <- list(Name=c("True","Static Empirical","GAC-Linear","GAC-CR"))
-scores <- data.table(index=rep(1:nrow(Z_oos),length(cov_mats$Name)),
-                     Name=rep(cov_mats$Name,each=nrow(Z_oos)))
-# es=NULL,vs=NULL,`Log Score`=NULL)
-
-for(cov_i in 1:length(cov_mats$Name)){
-  for(i in 1:nrow(Z_oos)){
-    
-    if(cov_mats$Name[cov_i]=="True"){
-      cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1))  
-    }else if(cov_mats$Name[cov_i]=="Static Empirical"){
-      cov_temp <- cov(Z)
-    }else if(cov_mats$Name[cov_i]=="GAC-Linear"){
-      cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn_linear_pred(x_oos[i]),gamma=1))  
-    }else if(cov_mats$Name[cov_i]=="GAC-CR"){
-      cov_temp <- PowExp(R,params = list(sigma=1,theta=theta_fn_smooth_pred(x_oos[i]),gamma=1))  
-    }else{
-      stop("cov_i not recognised.")
-    }
-    
-    
-    # Draw sample trajectories
-    traj <- mvnfast::rmvn(n = 1000,
-                          mu=rep(0,ncol(R)),sigma = cov_temp)
-    
-    # es and vs
-    scores[index==i & Name==cov_mats$Name[[cov_i]], es := es_sample(y=Z_oos[i,],dat = t(traj))]
-    scores[index==i & Name==cov_mats$Name[[cov_i]], vs_0_5 := vs_sample_quick(y=Z_oos[i,],dat = t(traj), p = 0.5)]
-    scores[index==i & Name==cov_mats$Name[[cov_i]], vs_1 := vs_sample_quick(y=Z_oos[i,],dat = t(traj), p = 1)]
-    
-    # log score
-    scores[index==i & Name==cov_mats$Name[[cov_i]], ls := -log(mvnfast::dmvn(X = Z_oos[i,],mu = rep(0,ncol(R)),sigma = cov_temp))]
-    
-    # Entropy
-    scores[index==i & Name==cov_mats$Name[[cov_i]], entropy := 
-             cov_entropy(R_true = PowExp(R,params = list(sigma=1,theta=theta_fn(x_oos[i]),gamma=1)),
-                         R_est = cov_temp)]
-    
-  }
-}
-rm(cov_temp)
-
-print(setorder(scores[,mean(es),by="Name"],V1))
-print(setorder(scores[,mean(vs_0_5),by="Name"],V1))
-print(setorder(scores[,mean(vs_1),by="Name"],V1))
-print(setorder(scores[,mean(ls),by="Name"],V1))
-print(setorder(scores[,mean(entropy),by="Name"],V1))
-
-
-print(xtable(scores[,.(`Energy`=signif(mean(es),4),
-                       `Log`=signif(mean(ls),4),
-                       `VS-0.5`=signif(mean(vs_0_5),4),
-                       `VS-1`=signif(mean(vs_1),4),
-                       Entropy = signif(mean(entropy),4)),
-                    by="Name"][order(-Log),],digits = 3,
-             caption = c("Results of simulation experiment for example \\ref{sec:iso_dyn_cov}: Isotropic dynamic covariance."),
-             label = c("tab:iso_dyn_cov")),
-      caption.placement = "top",table.placement="",
-      include.rownames=F)
+dev.off()
 
 
 
@@ -306,12 +330,12 @@ rm(list = setdiff(ls(), lsf.str()))
 
 r <- seq(0,1,length.out=51)
 R <- as.matrix(dist(r))
+N <- 5000
 
 # Z <- r %*% t(r) # NB: Cov is no longer a function of separation only... 
 # Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=1,theta=2+1/(.1+sqrt(Z)),gamm=1)))$mat)
 
-N <- length(r)
-Z <- matrix(rep(r,N) + rep(r,each=N), N, N) +1
+Z <- matrix(rep(r,length(r)) + rep(r,each=length(r)), length(r), length(r)) +1
 Cov_R <- as.matrix(nearPD(PowExp(R,params = list(sigma=1,theta=1/(Z),gamm=0.8)))$mat)
 
 
@@ -319,7 +343,7 @@ image(t(Z))
 image(t(Cov_R))
 
 # Empirical from simulation
-data_sim <- mvnfast::rmvn(n = 1000,
+data_sim <- mvnfast::rmvn(n = N,
                           mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
 Cov_R_sim <- cov(data_sim)
 image(t(Cov_R_sim))
@@ -375,7 +399,7 @@ image(test_fit$Cov_Est-nearPD(test_fit$Cov_Est)$mat)
 
 
 # Realisations
-actuals <- mvnfast::rmvn(n = 1000,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
+actuals <- mvnfast::rmvn(n = N,mu=rep(0,ncol(Cov_R)),sigma = Cov_R)
 
 cov_mats <- list(Name=c("True","Empirical","Constant","GAC"),
                  mat=list(Cov_R,
@@ -387,7 +411,13 @@ scores <- data.table(index=rep(1:nrow(actuals),length(cov_mats$Name)),
 # es=NULL,vs=NULL,`Log Score`=NULL)
 
 for(cov_i in 1:length(cov_mats$Name)){
+  
+  print(cov_mats$Name[cov_i])
+  pb <- progress_bar$new(total = nrow(Z_oos))
+  
   for(i in 1:nrow(actuals)){
+    
+    pb$tick()
     
     # Draw sample trajectories
     traj <- mvnfast::rmvn(n = 1000,mu=rep(0,ncol(Cov_R)),sigma = cov_mats$mat[[cov_i]])
@@ -419,7 +449,7 @@ print(xtable(scores[,.(`Energy`=signif(mean(es),4),
                        `Log`=signif(mean(ls),4),
                        `VS-0.5`=signif(mean(vs_0_5),4),
                        `VS-1`=signif(mean(vs_1),4),
-                       Entropy = signif(mean(entropy),4)),
+                       KL = signif(mean(entropy),4)),
                     by="Name"][order(-Log),],digits = c(NA,3,2,2,1,3),
              caption = c("Results of simulation experiment for example \\ref{sec:aniso_cov}: Isotropic dynamic covariance."),
              label = c("tab:aniso_cov")),
