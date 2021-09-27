@@ -4,7 +4,16 @@
 \alias{gac}
 \title{Generalised Additive Covariance Functions}
 \usage{
-gac(R, X, Emp_Cov, cov_func, param_eqns, param_init = NULL, loss = "WLS")
+gac(
+  R,
+  X = list(),
+  Emp_Cov,
+  cov_func,
+  param_eqns,
+  param_init = NULL,
+  loss = "WLS",
+  smoothness_param = 0
+)
 }
 \arguments{
 \item{X}{Some container of covariates, e.g. a list with elements same size as \code{R}}
@@ -17,16 +26,20 @@ gac(R, X, Emp_Cov, cov_func, param_eqns, param_init = NULL, loss = "WLS")
 
 \item{loss}{Chosen loss function. Options are:
 \itemize{
- \item{WLS}{Weighted Leased Squares - weigthing by correlation.}
+ \item{WLS}{Weighted Leased Squares - weigthing by correlation}
+ \item{WLSf}{Weighted Leased Squares - weigthing by all correlations}
  \item{LS}{Least Squares}
 }}
+
+\item{smoothness_param}{Parameter to control smoothness, is the weight that multiples
+squared second derivative of smooth splines.}
 
 \item{params}{R Separation matrix}
 
 \item{Emp_CovEmpirical}{covaraiance to fit model to}
 }
 \value{
-Returns an object of class \code{gac} for which methods will be writtern...
+Returns an object of class \code{gac} for which methods will be written...
 }
 \description{
 Function to fit a covairance function with generalised additive-type models
