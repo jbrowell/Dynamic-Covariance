@@ -312,7 +312,7 @@ setEPS(); postscript("PSCC22_plots/iso_theta_fits.eps",width = 6,height = 5)
 
 plot(x[order(x)],theta_fn(x)[order(x)],type="l", lwd=2,
      ylim=c(1,4),axes=F,
-     xlab=TeX("$x_t$"),ylab=TeX("$\\hat{\\theta}$"))
+     xlab=TeX("$x_t$"),ylab=TeX("$\\theta$"))
 axis(1);axis(2); grid()
 lines(iso_ex_linear_fit$modelling_table$x1,
       iso_ex_linear_fit$gam_prefits[[1]]$X %*% iso_ex_linear_fit$gac_coef[[1]],col=2,lty=2,lwd=2)
