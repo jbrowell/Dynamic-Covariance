@@ -259,8 +259,10 @@ gac <- function(R,
         }else if(loss=="WLS"){
           E_after_j <- E_after_j + (data[j,] %*% t(data[j,]) - Par_cov)/abs(1-cov2cor(Par_cov))
           E_after_j[(R==0)] <- 0
+        }else if(loss=="WLSf"){
+          E_after_j <- E_after_j + (data[j,] %*% t(data[j,]) - Par_cov)*abs(cov2cor(Par_cov))
         }else{
-          stop("Only loss=\"LS\" and \"WLS\" available if data!=NULL")
+          stop("Loss not recognised. Options: LS, WLS, WLSf")
         }
       }
       
