@@ -5,7 +5,7 @@ Models and tools for dynamic covariance structures
 
 This package in its present form is shared to enable the reproduction of examples included in a paper submitted to the 2022 Power Systems Comutation Conference. Its use is still under development and its functionality is severly limited. We hope to extend its functionalilty in the future.
 
-J. Browell, C. Gilbert and M. Fassiolo, "Covariance Structures for High-dimensional Energy Forecasting," submitted to PSCC2022.
+J. Browell, C. Gilbert and M. Fassiolo, "Covariance Structures for High-dimensional Energy Forecasting," submitted to PSCC2022, [pre-print](http://www.jethrobrowell.com).
 
 ## Acknowledgements
 
